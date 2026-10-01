@@ -261,7 +261,7 @@ function send_verification_email(array $user): bool {
 
 function send_password_reset_email(array $user): bool {
     $token = create_one_time_token('password_reset_tokens', (int) $user['id'], 1800);
-    $link = base_url() . '/?reset=' . rawurlencode($token);
+    $link = base_url() . '/profile?reset=' . rawurlencode($token);
     $body = "Reset your VGC Team Lists password:\n\n{$link}\n\nThis link expires in 30 minutes. If you did not request a reset, you can ignore this email.";
     return send_text_email((string) $user['email'], 'Reset your VGC Team Lists password', $body);
 }
