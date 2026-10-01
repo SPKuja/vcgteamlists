@@ -253,15 +253,43 @@
       button.className="team-slot"+(mon&&mon.name?"":" empty");
       button.dataset.slot=index;
       if(!mon||!mon.name){
-        button.innerHTML='<span class="slot-number">SLOT '+(index+1)+'</span><span class="add-orb">+</span><strong>Add Pokémon</strong><small>Tap to fill this slot</small>';
+        button.innerHTML='<span class="slot-number">SLOT '+(index+1)+'</span><span class="add-orb">+</span><strong>Add Pokémon</strong><small>Choose a Pokémon for this slot</small>';
       }else{
         complete++;
-        var types=(mon.types||[]).map(function(t){return '<span class="type-pill">'+escapeHtml(t)+'</span>'}).join("");
-        button.innerHTML='<span class="slot-number">SLOT '+(index+1)+'</span><div class="slot-img">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div><div class="slot-name">'+escapeHtml(displayMonName(mon))+'</div><div class="slot-meta">'+escapeHtml(mon.ability||"No ability")+' · '+escapeHtml(mon.item||"No item")+'</div><div class="slot-types">'+types+'</div>';
+        var types=(mon.types||[]).map(function(t){
+          return '<span class="type-pill type-'+moveTypeKey(t)+'">'+typeIconHtml(t,"slot-type-icon")+'<span>'+escapeHtml(t)+'</span></span>';
+        }).join("");
+        var item='<span class="slot-info-value">'+(mon.itemImage?'<img class="slot-item-icon" src="'+escapeHtml(mon.itemImage)+'" alt="">':'')+escapeHtml(mon.item||"No item")+'</span>';
+        var traits=[];
+        if(mon.alignment)traits.push('<span class="slot-trait">'+escapeHtml(mon.alignment)+'</span>');
+        if(mon.gender){
+          var genderSymbol=mon.gender==="Male"?"♂":mon.gender==="Female"?"♀":"◇";
+          traits.push('<span class="slot-trait gender-'+mon.gender.toLowerCase()+'">'+genderSymbol+' '+escapeHtml(mon.gender)+'</span>');
+        }
+        button.innerHTML=
+          '<span class="slot-number">SLOT '+(index+1)+'</span>'+
+          '<span class="slot-edit">Edit <span>›</span></span>'+
+          '<div class="slot-img">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
+          '<div class="slot-copy">'+
+            '<div class="slot-name">'+escapeHtml(displayMonName(mon))+'</div>'+
+            '<div class="slot-types">'+types+'</div>'+
+            (traits.length?'<div class="slot-traits">'+traits.join("")+'</div>':'')+
+            '<div class="slot-info-grid">'+
+              '<div><small>Ability</small><span>'+escapeHtml(mon.ability||"No ability")+'</span></div>'+
+              '<div><small>Held item</small>'+item+'</div>'+
+            '</div>'+
+          '</div>';
       }
       grid.appendChild(button);
     });
-    $("#completionCount").textContent=complete+" / 6 complete";
+    var completion=$("#completionCount");
+    completion.textContent=complete===6?"✓ 6 / 6 ready":complete+" / 6 complete";
+    completion.classList.toggle("is-complete",complete===6);
+
+    var completedMons=state.team.filter(function(mon){return mon&&mon.name});
+    if(completedMons.some(function(mon){return mon.item&&!mon.itemImage})){
+      hydrateItemMeta(completedMons).then(function(changed){if(changed)renderTeam()});
+    }
   }
 
   function renderStatInputs(){
