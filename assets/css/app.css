@@ -241,3 +241,37 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .teams-page-head{align-items:flex-start;flex-direction:column}.teams-page-head .button{width:100%}
   .bottom-nav{grid-template-columns:repeat(4,1fr)}
 }
+
+.bottom-nav{grid-template-columns:repeat(4,minmax(0,1fr));width:min(calc(100% - 24px),520px)}
+.bottom-nav button{min-width:0;overflow:hidden}
+.bottom-nav button small{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+
+.profile-view{padding-top:30px}
+.profile-page-head{margin-bottom:22px}
+.profile-page-head h1{font-size:clamp(38px,7vw,64px);line-height:1;letter-spacing:-.055em;margin:0}
+.profile-page-shell{max-width:900px}
+.account-page-card{max-width:560px;background:#fff;border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:var(--shadow-soft)}
+.profile-layout{display:grid;gap:16px}
+.profile-summary-card,.profile-main-card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:var(--shadow-soft)}
+.profile-summary-card{text-align:center}
+.profile-summary-card>img{width:112px;height:112px;border-radius:28px;object-fit:cover;background:var(--surface-soft);margin-bottom:14px}
+.profile-summary-card .profile-identity>strong{font-size:14px;display:block;overflow-wrap:anywhere}
+.profile-summary-card .profile-avatar-actions{justify-content:center}
+.profile-signout{display:block;margin:18px auto 0;text-align:center}
+.profile-main-card .profile-form{border:0;padding:0;box-shadow:none}
+.profile-save-success{display:flex;gap:11px;align-items:center;margin-top:14px;padding:13px 14px;border-radius:14px;background:#eaf8ef;color:#18733a}
+.profile-save-success>span{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:#fff;font-weight:900}
+.profile-save-success strong{display:block;font-size:12px}
+.profile-save-success small{display:block;font-size:9px;margin-top:2px;color:#367a4d}
+.team-page-message{margin:0 0 10px}
+.teams-library-head{margin-top:4px}
+
+@media(min-width:760px){
+  .profile-layout{grid-template-columns:260px minmax(0,1fr)}
+}
+@media(max-width:460px){
+  .bottom-nav{height:62px;width:calc(100% - 16px);bottom:max(8px,env(safe-area-inset-bottom));padding:4px;border-radius:20px}
+  .bottom-nav button{border-radius:15px}
+  .bottom-nav button span{font-size:16px}
+  .bottom-nav button small{font-size:8px}
+}
