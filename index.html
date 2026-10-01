@@ -180,8 +180,22 @@
         <div class="form-section">
           <div class="form-section-title"><span>01</span><div><h3>Battle details</h3></div></div>
           <div class="form-grid two">
-            <label><span>Ability</span><input id="abilityInput" placeholder="e.g. Intimidate"></label>
-            <label><span>Held item</span><input id="itemInput" placeholder="e.g. Focus Sash"></label>
+            <div class="autocomplete-field" data-resource="ability">
+              <label for="abilityInput">Ability</label>
+              <div class="autocomplete-control">
+                <input id="abilityInput" autocomplete="off" placeholder="Search abilities">
+                <button type="button" class="field-caret" data-open-suggestions="abilityInput" aria-label="Show abilities">⌄</button>
+              </div>
+              <div class="field-results" data-results-for="abilityInput" hidden></div>
+            </div>
+            <div class="autocomplete-field" data-resource="item">
+              <label for="itemInput">Held item</label>
+              <div class="autocomplete-control">
+                <input id="itemInput" autocomplete="off" placeholder="Search held items">
+                <button type="button" class="field-caret" data-open-suggestions="itemInput" aria-label="Show held items">⌄</button>
+              </div>
+              <div class="field-results" data-results-for="itemInput" hidden></div>
+            </div>
             <label><span>Gender</span><select id="genderInput"><option value="">Not specified</option><option>Male</option><option>Female</option><option>Genderless</option></select></label>
             <label><span>Level</span><input id="levelInput" type="number" inputmode="numeric" min="1" max="100" value="50"></label>
           </div>
