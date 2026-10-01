@@ -215,10 +215,38 @@
         <div class="form-section">
           <div class="form-section-title"><span id="movesNumber">04</span><div><h3>Moves</h3></div></div>
           <div class="move-grid">
-            <label><span>Move 1</span><input class="move-input" data-move="0" placeholder="Move"></label>
-            <label><span>Move 2</span><input class="move-input" data-move="1" placeholder="Move"></label>
-            <label><span>Move 3</span><input class="move-input" data-move="2" placeholder="Move"></label>
-            <label><span>Move 4</span><input class="move-input" data-move="3" placeholder="Move"></label>
+            <div class="autocomplete-field" data-resource="move">
+              <label for="moveInput0">Move 1</label>
+              <div class="autocomplete-control">
+                <input id="moveInput0" class="move-input" data-move="0" autocomplete="off" placeholder="Search moves">
+                <button type="button" class="field-caret" data-open-suggestions="moveInput0" aria-label="Show moves">⌄</button>
+              </div>
+              <div class="field-results" data-results-for="moveInput0" hidden></div>
+            </div>
+            <div class="autocomplete-field" data-resource="move">
+              <label for="moveInput1">Move 2</label>
+              <div class="autocomplete-control">
+                <input id="moveInput1" class="move-input" data-move="1" autocomplete="off" placeholder="Search moves">
+                <button type="button" class="field-caret" data-open-suggestions="moveInput1" aria-label="Show moves">⌄</button>
+              </div>
+              <div class="field-results" data-results-for="moveInput1" hidden></div>
+            </div>
+            <div class="autocomplete-field" data-resource="move">
+              <label for="moveInput2">Move 3</label>
+              <div class="autocomplete-control">
+                <input id="moveInput2" class="move-input" data-move="2" autocomplete="off" placeholder="Search moves">
+                <button type="button" class="field-caret" data-open-suggestions="moveInput2" aria-label="Show moves">⌄</button>
+              </div>
+              <div class="field-results" data-results-for="moveInput2" hidden></div>
+            </div>
+            <div class="autocomplete-field" data-resource="move">
+              <label for="moveInput3">Move 4</label>
+              <div class="autocomplete-control">
+                <input id="moveInput3" class="move-input" data-move="3" autocomplete="off" placeholder="Search moves">
+                <button type="button" class="field-caret" data-open-suggestions="moveInput3" aria-label="Show moves">⌄</button>
+              </div>
+              <div class="field-results" data-results-for="moveInput3" hidden></div>
+            </div>
           </div>
         </div>
       </div>

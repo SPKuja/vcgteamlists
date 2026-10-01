@@ -19,6 +19,7 @@
     team:[null,null,null,null,null,null]
   };
   var pokemonList=[];
+  var resourceLists={ability:null,item:null,nature:null,move:null};
   var toastTimer=null;
 
   function $(s,root){return (root||document).querySelector(s)}
@@ -31,7 +32,7 @@
   }
   function emptyStats(){return {hp:"",attack:"",defense:"",specialAttack:"",specialDefense:"",speed:""}}
   function blankMon(){
-    return {slug:"",name:"",image:"",types:[],ability:"",item:"",gender:"",level:50,alignment:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),moves:["","","",""]};
+    return {slug:"",name:"",image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",gender:"",level:50,alignment:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),moves:["","","",""]};
   }
   function showToast(message){
     var el=$("#toast");el.textContent=message;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.classList.remove("show")},2200);
@@ -103,7 +104,7 @@
 
   function renderGameFields(mon){
     var config=gameConfig[state.game],wrap=$("#gameSpecificFields");
-    var html='<div class="form-grid two" style="margin-top:10px"><label><span>'+escapeHtml(config.alignmentLabel)+'</span><input id="alignmentInput" placeholder="e.g. Timid"></label>';
+    var html='<div class="form-grid two" style="margin-top:10px"><div class="autocomplete-field" data-resource="nature"><label for="alignmentInput">'+escapeHtml(config.alignmentLabel)+'</label><div class="autocomplete-control"><input id="alignmentInput" autocomplete="off" placeholder="Search alignments"><button type="button" class="field-caret" data-open-suggestions="alignmentInput" aria-label="Show alignments">⌄</button></div><div class="field-results" data-results-for="alignmentInput" hidden></div></div>';
     if(config.tera)html+='<label><span>Tera Type</span><input id="teraInput" placeholder="e.g. Grass"></label>';
     html+='</div>';
     if(config.gmax)html+='<label class="inline-toggle"><div><strong>Gigantamax capable</strong></div><input id="gmaxInput" type="checkbox"></label>';
@@ -139,7 +140,7 @@
   }
 
   function closeEditor(){
-    $("#editorBackdrop").hidden=true;$("#pokemonResults").hidden=true;document.body.style.overflow="";
+    $("#editorBackdrop").hidden=true;$("#pokemonResults").hidden=true;closeFieldResults();document.body.style.overflow="";
   }
 
   function setEditorPokemon(mon){
@@ -151,6 +152,78 @@
     $("#selectedPokemon").dataset.name=mon.name||"";
     $("#selectedPokemon").dataset.image=mon.image||"";
     $("#selectedPokemon").dataset.types=JSON.stringify(mon.types||[]);
+    $("#selectedPokemon").dataset.abilities=JSON.stringify(mon.availableAbilities||[]);
+    $("#selectedPokemon").dataset.moves=JSON.stringify(mon.availableMoves||[]);
+  }
+
+  async function ensureResourceList(resource){
+    if(resourceLists[resource]&&resourceLists[resource].length)return resourceLists[resource];
+    var cacheKey="vcg-resource-"+resource+"-v1";
+    try{
+      var cached=localStorage.getItem(cacheKey);
+      if(cached){
+        resourceLists[resource]=JSON.parse(cached);
+        if(resourceLists[resource].length)return resourceLists[resource];
+      }
+    }catch(e){}
+    var limit=resource==="nature"?100:5000;
+    var res=await fetch(API+"/"+resource+"?limit="+limit);
+    if(!res.ok)throw new Error(resource+" list request failed");
+    var data=await res.json();
+    resourceLists[resource]=(data.results||[]).map(function(entry){return entry.name});
+    try{localStorage.setItem(cacheKey,JSON.stringify(resourceLists[resource]))}catch(e){}
+    return resourceLists[resource];
+  }
+
+  function closeFieldResults(exceptInputId){
+    $(".field-results").forEach(function(panel){
+      if(panel.dataset.resultsFor!==exceptInputId)panel.hidden=true;
+    });
+  }
+
+  function fieldPriority(resource){
+    var raw="[]";
+    if(resource==="ability")raw=$("#selectedPokemon").dataset.abilities||"[]";
+    if(resource==="move")raw=$("#selectedPokemon").dataset.moves||"[]";
+    try{return JSON.parse(raw)}catch(e){return []}
+  }
+
+  async function showFieldSuggestions(input,forceOpen){
+    var field=input.closest(".autocomplete-field");
+    if(!field)return;
+    var resource=field.dataset.resource;
+    var panel=$('[data-results-for="'+input.id+'"]');
+    if(!panel)return;
+    var q=input.value.toLowerCase().trim().replace(/\s+/g,"-");
+    if(!forceOpen&&q.length<1){panel.hidden=true;return}
+    closeFieldResults(input.id);
+    panel.hidden=false;
+    panel.innerHTML='<div class="field-empty">Loading…</div>';
+    try{
+      var list=await ensureResourceList(resource);
+      var priority=fieldPriority(resource);
+      var ranked=list.filter(function(name){return !q||name.indexOf(q)!==-1}).sort(function(a,b){
+        var ap=priority.indexOf(a),bp=priority.indexOf(b);
+        if(ap!==-1||bp!==-1){
+          if(ap===-1)return 1;
+          if(bp===-1)return -1;
+          return ap-bp;
+        }
+        if(q){
+          var ai=a.indexOf(q),bi=b.indexOf(q);
+          if(ai!==bi)return ai-bi;
+        }
+        return a.localeCompare(b);
+      }).slice(0,16);
+      if(!ranked.length){panel.innerHTML='<div class="field-empty">No matches</div>';return}
+      panel.innerHTML=ranked.map(function(name){
+        var preferred=priority.indexOf(name)!==-1;
+        var tag=preferred?(resource==="ability"?"For this Pokémon":"Species move"):"";
+        return '<button type="button" class="field-result" data-field-value="'+escapeHtml(prettyName(name))+'" data-target-input="'+escapeHtml(input.id)+'"><strong>'+escapeHtml(prettyName(name))+'</strong>'+(tag?'<small>'+tag+'</small>':'')+'</button>';
+      }).join("");
+    }catch(err){
+      panel.innerHTML='<div class="field-empty">Suggestions unavailable</div>';
+    }
   }
 
   async function ensurePokemonList(){
@@ -194,9 +267,11 @@
       var image=(data.sprites&&data.sprites.other&&data.sprites.other.home&&data.sprites.other.home.front_default)||
         (data.sprites&&data.sprites.other&&data.sprites.other["official-artwork"]&&data.sprites.other["official-artwork"].front_default)||
         (data.sprites&&data.sprites.front_default)||"";
-      var mon={slug:slug,name:prettyName(slug),image:image,types:(data.types||[]).map(function(t){return prettyName(t.type.name)})};
+      var abilities=(data.abilities||[]).map(function(a){return a.ability.name});
+      var moves=(data.moves||[]).map(function(m){return m.move.name});
+      var mon={slug:slug,name:prettyName(slug),image:image,types:(data.types||[]).map(function(t){return prettyName(t.type.name)}),availableAbilities:abilities,availableMoves:moves};
       setEditorPokemon(mon);
-      if(!$("#abilityInput").value&&data.abilities&&data.abilities[0])$("#abilityInput").value=prettyName(data.abilities[0].ability.name);
+      if(!$("#abilityInput").value&&abilities[0])$("#abilityInput").value=prettyName(abilities[0]);
     }catch(err){
       $("#editorPokemonName").textContent=prettyName(slug);
       showToast("Could not load artwork — you can still enter the team manually");
@@ -211,6 +286,8 @@
     mon.name=selected.dataset.name||existing.name||$("#pokemonSearch").value.trim();
     mon.image=selected.dataset.image||existing.image||"";
     try{mon.types=JSON.parse(selected.dataset.types||"[]")}catch(e){mon.types=[]}
+    try{mon.availableAbilities=JSON.parse(selected.dataset.abilities||"[]")}catch(e){mon.availableAbilities=[]}
+    try{mon.availableMoves=JSON.parse(selected.dataset.moves||"[]")}catch(e){mon.availableMoves=[]}
     mon.ability=$("#abilityInput").value.trim();
     mon.item=$("#itemInput").value.trim();
     mon.gender=$("#genderInput").value;
@@ -335,6 +412,27 @@
     $("#removePokemonButton").addEventListener("click",removeEditor);
     $("#pokemonSearch").addEventListener("input",function(e){searchPokemon(e.target.value)});
     $("#pokemonResults").addEventListener("click",function(e){var hit=e.target.closest("[data-pokemon]");if(hit)choosePokemon(hit.dataset.pokemon)});
+    $("#editorBackdrop").addEventListener("input",function(e){
+      if(e.target.closest(".autocomplete-field"))showFieldSuggestions(e.target,false);
+    });
+    $("#editorBackdrop").addEventListener("click",function(e){
+      var caret=e.target.closest("[data-open-suggestions]");
+      if(caret){
+        var input=$("#"+caret.dataset.openSuggestions);
+        var panel=$('[data-results-for="'+input.id+'"]');
+        if(panel&&!panel.hidden){panel.hidden=true}else{showFieldSuggestions(input,true)}
+        return;
+      }
+      var option=e.target.closest("[data-field-value]");
+      if(option){
+        var target=$("#"+option.dataset.targetInput);
+        if(target)target.value=option.dataset.fieldValue;
+        var resultPanel=option.closest(".field-results");
+        if(resultPanel)resultPanel.hidden=true;
+        return;
+      }
+      if(!e.target.closest(".autocomplete-field"))closeFieldResults();
+    });
     $("#saveLocalButton").addEventListener("click",function(){syncMeta();saveState(false)});
     $("#clearTeamButton").addEventListener("click",clearTeam);
     ["playerName","trainerName","eventName","teamName"].forEach(function(id){$("#"+id).addEventListener("change",syncMeta)});
