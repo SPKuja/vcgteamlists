@@ -60,7 +60,6 @@
     state.game=game;
     document.body.dataset.game=game;
     $("#builderTitle").textContent=gameConfig[game].name;
-    $("#builderSubtitle").textContent=gameConfig[game].subtitle;
     $("#builderGameArt").style.backgroundImage="url('"+gameConfig[game].art+"')";
     saveState(true);renderTeam();navigate("team");
   }
@@ -107,7 +106,7 @@
     var html='<div class="form-grid two" style="margin-top:10px"><label><span>'+escapeHtml(config.alignmentLabel)+'</span><input id="alignmentInput" placeholder="e.g. Timid"></label>';
     if(config.tera)html+='<label><span>Tera Type</span><input id="teraInput" placeholder="e.g. Grass"></label>';
     html+='</div>';
-    if(config.gmax)html+='<label class="inline-toggle"><div><strong>Gigantamax capable</strong><small>Mark this specimen as Gigantamax-capable.</small></div><input id="gmaxInput" type="checkbox"></label>';
+    if(config.gmax)html+='<label class="inline-toggle"><div><strong>Gigantamax capable</strong></div><input id="gmaxInput" type="checkbox"></label>';
     wrap.innerHTML=html;
     $("#statPointsSection").style.display=config.statPoints?"block":"none";
     $("#movesNumber").textContent=config.statPoints?"04":"03";
