@@ -8,9 +8,9 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.2.3">
-  <script defer src="/assets/js/app.js?v=0.2.3"></script>
-  <script defer src="/assets/js/auth.js?v=0.2.3"></script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.3.0">
+  <script defer src="/assets/js/app.js?v=0.3.0"></script>
+  <script defer src="/assets/js/auth.js?v=0.3.0"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -172,19 +172,6 @@
         </div>
 
         <div id="teamsUser" hidden>
-          <section class="team-save-panel">
-            <div>
-              <span class="eyebrow">Current build</span>
-              <h2>Save this team</h2>
-            </div>
-            <div class="cloud-save-row">
-              <input id="cloudTeamName" maxlength="100" placeholder="Team name">
-              <button class="button primary" id="saveCurrentCloudTeam" type="button">Save team</button>
-              <button class="button secondary" id="saveAsNewCloudTeam" type="button">Save as new</button>
-            </div>
-            <div class="account-message" id="teamPageMessage" role="status" aria-live="polite"></div>
-          </section>
-
           <div class="teams-library-head">
             <div>
               <span class="eyebrow">Saved builds</span>
@@ -193,6 +180,93 @@
             <span class="completion" id="savedTeamCount">0 teams</span>
           </div>
           <div class="cloud-team-list teams-library" id="cloudTeamList"></div>
+        </div>
+      </section>
+
+      <section class="view profile-view" id="profileView" aria-labelledby="profileTitle">
+        <div class="profile-page-head">
+          <div><span class="eyebrow">Your account</span><h1 id="profileTitle">Profile</h1></div>
+        </div>
+
+        <div class="profile-page-shell">
+          <div id="accountGuest" class="account-page-card">
+            <div class="account-tabs" role="tablist" aria-label="Account">
+              <button type="button" class="is-selected" data-auth-pane="login">Sign in</button>
+              <button type="button" data-auth-pane="register">Create account</button>
+            </div>
+
+            <form class="account-form" id="loginForm">
+              <label><span>Email</span><input id="loginEmail" type="email" autocomplete="email" required></label>
+              <label><span>Password</span><input id="loginPassword" type="password" autocomplete="current-password" required></label>
+              <button class="button primary" type="submit">Sign in</button>
+              <button class="text-button account-link" id="forgotPasswordButton" type="button">Forgot password?</button>
+              <button class="text-button account-link" id="resendVerificationButton" type="button" hidden>Resend verification email</button>
+            </form>
+
+            <form class="account-form" id="registerForm" hidden>
+              <label><span>Email</span><input id="registerEmail" type="email" autocomplete="email" required></label>
+              <label><span>Password</span><input id="registerPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+              <label><span>Confirm password</span><input id="registerPasswordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+              <button class="button primary" type="submit">Create account</button>
+            </form>
+
+            <section class="registration-success" id="registeredPane" hidden>
+              <div class="registration-success-icon" aria-hidden="true">✓</div>
+              <span class="eyebrow">Account created</span>
+              <h3>Check your email</h3>
+              <p>We’ve sent a verification link to <strong id="registeredEmail"></strong>.</p>
+              <p class="registration-success-note">Open the link in that email to activate your account, then come back here to sign in.</p>
+              <button class="button primary" type="button" data-auth-pane="login">Go to sign in</button>
+              <button class="text-button account-link" id="registeredResendButton" type="button">Resend verification email</button>
+            </section>
+
+            <form class="account-form" id="forgotForm" hidden>
+              <label><span>Email</span><input id="forgotEmail" type="email" autocomplete="email" required></label>
+              <button class="button primary" type="submit">Send reset link</button>
+              <button class="text-button account-link" type="button" data-auth-pane="login">Back to sign in</button>
+            </form>
+
+            <form class="account-form" id="resetForm" hidden>
+              <label><span>New password</span><input id="resetPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+              <label><span>Confirm password</span><input id="resetPasswordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+              <button class="button primary" type="submit">Update password</button>
+            </form>
+            <div class="account-message" id="authMessage" role="status" aria-live="polite"></div>
+          </div>
+
+          <div id="accountUser" hidden>
+            <div class="profile-layout">
+              <aside class="profile-summary-card">
+                <img id="profileAvatar" alt="" width="112" height="112">
+                <div class="profile-identity"><strong id="profileEmail"></strong><span class="verified-badge">Verified</span></div>
+                <div class="profile-avatar-actions">
+                  <button class="button secondary compact-button" id="uploadAvatarButton" type="button">Upload avatar</button>
+                  <button class="text-button account-link" id="removeAvatarButton" type="button">Use Gravatar</button>
+                  <input id="avatarInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+                </div>
+                <button class="button secondary account-teams-button" id="manageTeamsButton" type="button">Manage My Teams</button>
+                <button class="text-button profile-signout" id="logoutButton" type="button">Sign out</button>
+              </aside>
+
+              <div class="profile-main-card">
+                <div class="section-heading compact"><div><span class="eyebrow">Defaults</span><h2>Player details</h2></div></div>
+                <form class="account-form profile-form" id="profileForm">
+                  <div class="details-grid">
+                    <label><span>Player name</span><input id="profilePlayerName" autocomplete="name"></label>
+                    <label><span>Trainer name</span><input id="profileTrainerName"></label>
+                    <label><span>Player ID</span><input id="profilePlayerId" inputmode="numeric"></label>
+                    <label><span>Year of birth</span><input id="profileYearOfBirth" inputmode="numeric" maxlength="4" placeholder="YYYY"></label>
+                  </div>
+                  <button class="button primary" id="profileSaveButton" type="submit">Save profile</button>
+                </form>
+                <div class="profile-save-success" id="profileSavedState" hidden>
+                  <span aria-hidden="true">✓</span>
+                  <div><strong>Profile saved</strong><small>Your player details will be used as defaults for new builds.</small></div>
+                </div>
+                <div class="account-message" id="profileMessage" role="status" aria-live="polite"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -309,93 +383,6 @@
         <button class="button danger ghost" id="removePokemonButton">Remove</button>
         <button class="button primary" id="savePokemonButton">Save Pokémon</button>
       </footer>
-    </section>
-  </div>
-
-  <div class="account-backdrop" id="accountBackdrop" hidden>
-    <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
-      <div class="sheet-grabber" aria-hidden="true"></div>
-      <header class="account-header">
-        <div><span class="eyebrow">VGC Team Lists</span><h2 id="accountTitle">Account</h2></div>
-        <button class="icon-button" id="closeAccountButton" type="button" aria-label="Close account">×</button>
-      </header>
-      <div class="account-scroll">
-        <div id="accountGuest">
-          <div class="account-tabs" role="tablist" aria-label="Account">
-            <button type="button" class="is-selected" data-auth-pane="login">Sign in</button>
-            <button type="button" data-auth-pane="register">Create account</button>
-          </div>
-
-          <form class="account-form" id="loginForm">
-            <label><span>Email</span><input id="loginEmail" type="email" autocomplete="email" required></label>
-            <label><span>Password</span><input id="loginPassword" type="password" autocomplete="current-password" required></label>
-            <button class="button primary" type="submit">Sign in</button>
-            <button class="text-button account-link" id="forgotPasswordButton" type="button">Forgot password?</button>
-            <button class="text-button account-link" id="resendVerificationButton" type="button" hidden>Resend verification email</button>
-          </form>
-
-          <form class="account-form" id="registerForm" hidden>
-            <label><span>Email</span><input id="registerEmail" type="email" autocomplete="email" required></label>
-            <label><span>Password</span><input id="registerPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
-            <label><span>Confirm password</span><input id="registerPasswordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
-            <button class="button primary" type="submit">Create account</button>
-          </form>
-
-          <section class="registration-success" id="registeredPane" hidden>
-            <div class="registration-success-icon" aria-hidden="true">✓</div>
-            <span class="eyebrow">Account created</span>
-            <h3>Check your email</h3>
-            <p>We’ve sent a verification link to <strong id="registeredEmail"></strong>.</p>
-            <p class="registration-success-note">Open the link in that email to activate your account, then come back here to sign in.</p>
-            <button class="button primary" type="button" data-auth-pane="login">Go to sign in</button>
-            <button class="text-button account-link" id="registeredResendButton" type="button">Resend verification email</button>
-          </section>
-
-          <form class="account-form" id="forgotForm" hidden>
-            <label><span>Email</span><input id="forgotEmail" type="email" autocomplete="email" required></label>
-            <button class="button primary" type="submit">Send reset link</button>
-            <button class="text-button account-link" type="button" data-auth-pane="login">Back to sign in</button>
-          </form>
-
-          <form class="account-form" id="resetForm" hidden>
-            <label><span>New password</span><input id="resetPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
-            <label><span>Confirm password</span><input id="resetPasswordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
-            <button class="button primary" type="submit">Update password</button>
-          </form>
-
-          <div class="account-message" id="authMessage" role="status" aria-live="polite"></div>
-        </div>
-
-        <div id="accountUser" hidden>
-          <div class="profile-hero">
-            <img id="profileAvatar" alt="" width="84" height="84">
-            <div class="profile-identity">
-              <strong id="profileEmail"></strong>
-              <span class="verified-badge">Verified</span>
-              <div class="profile-avatar-actions">
-                <button class="button secondary compact-button" id="uploadAvatarButton" type="button">Upload avatar</button>
-                <button class="text-button account-link" id="removeAvatarButton" type="button">Use Gravatar</button>
-                <input id="avatarInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
-              </div>
-            </div>
-          </div>
-
-          <form class="account-form profile-form" id="profileForm">
-            <div class="details-grid">
-              <label><span>Player name</span><input id="profilePlayerName" autocomplete="name"></label>
-              <label><span>Trainer name</span><input id="profileTrainerName"></label>
-              <label><span>Player ID</span><input id="profilePlayerId" inputmode="numeric"></label>
-              <label><span>Year of birth</span><input id="profileYearOfBirth" inputmode="numeric" maxlength="4" placeholder="YYYY"></label>
-            </div>
-            <button class="button primary" id="profileSaveButton" type="submit">Save profile</button>
-          </form>
-
-          <button class="button secondary account-teams-button" id="manageTeamsButton" type="button">Manage My Teams</button>
-
-          <button class="button secondary logout-button" id="logoutButton" type="button">Sign out</button>
-          <div class="account-message" id="profileMessage" role="status" aria-live="polite"></div>
-        </div>
-      </div>
     </section>
   </div>
 
