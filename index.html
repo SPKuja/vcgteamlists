@@ -8,8 +8,8 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.1.5">
-  <script defer src="/assets/js/app.js?v=0.1.5"></script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.1.6">
+  <script defer src="/assets/js/app.js?v=0.1.6"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -175,6 +175,10 @@
             <div class="search-input-wrap"><span>⌕</span><input id="pokemonSearch" autocomplete="off" placeholder="Start typing, e.g. Salamence"></div>
           </label>
           <div class="search-results" id="pokemonResults" hidden></div>
+          <label class="form-selector" id="formField" hidden>
+            <span>Form</span>
+            <select id="formSelect"></select>
+          </label>
         </div>
 
         <div class="form-section">
