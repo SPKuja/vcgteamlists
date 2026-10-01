@@ -889,3 +889,19 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
     backdrop-filter:none;
   }
 }
+
+/* Keep builder actions anchored directly below the team grid */
+.builder-actions{
+  position:static;
+  bottom:auto;
+  width:100%;
+  max-width:none;
+  margin:22px 0 8px;
+  justify-content:flex-end;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  backdrop-filter:none;
+  box-shadow:none;
+}
