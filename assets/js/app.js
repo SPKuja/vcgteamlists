@@ -413,7 +413,10 @@
     $("#pokemonSearch").addEventListener("input",function(e){searchPokemon(e.target.value)});
     $("#pokemonResults").addEventListener("click",function(e){var hit=e.target.closest("[data-pokemon]");if(hit)choosePokemon(hit.dataset.pokemon)});
     $("#editorBackdrop").addEventListener("input",function(e){
-      if(e.target.closest(".autocomplete-field"))showFieldSuggestions(e.target,false);
+      if(e.target.matches(".autocomplete-field input"))showFieldSuggestions(e.target,false);
+    });
+    $("#editorBackdrop").addEventListener("focusin",function(e){
+      if(e.target.matches(".autocomplete-field input"))showFieldSuggestions(e.target,true);
     });
     $("#editorBackdrop").addEventListener("click",function(e){
       var caret=e.target.closest("[data-open-suggestions]");
