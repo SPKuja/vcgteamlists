@@ -535,3 +535,53 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .print-trait-chip .nature-effects b{font-size:3.6pt;padding:.25mm .6mm}
   .print-trait-chip.gender-chip b{font-size:6pt}
 }
+
+/* Keep a full six-Pokémon team comfortably on one A4 page */
+@media print{
+  .print-sheet{padding:0}
+  .print-head{padding:1.5mm 1.5mm 2.2mm}
+  .print-team{gap:2mm 2.4mm}
+  .print-mon{
+    min-height:0;
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+  .print-mon-head{
+    grid-template-columns:23mm 1fr;
+    min-height:23mm;
+  }
+  .print-mon-art{
+    min-height:23mm;
+  }
+  .print-mon-art img{
+    width:21mm;
+    height:21mm;
+  }
+  .print-mon-title{
+    padding:2.3mm 2.2mm 1.4mm 0;
+  }
+  .print-mon-title p{
+    margin-top:.7mm;
+  }
+  .print-mon-body{
+    padding:1.8mm 2mm 2mm;
+  }
+  .print-row{
+    min-height:4.4mm;
+  }
+  .print-moves{
+    margin-top:1.4mm;
+    gap:1mm 1.3mm;
+  }
+  .print-move{
+    min-height:7mm;
+    padding-top:1mm;
+    padding-bottom:.8mm;
+  }
+  .print-stats{
+    margin-top:1.5mm;
+  }
+  .print-foot{
+    margin-top:1.8mm;
+  }
+}
