@@ -86,10 +86,11 @@
   function navigate(target){
     if(target==="team"&&!state.game)target="home";
     $$(".view").forEach(function(v){v.classList.remove("is-active")});
-    var id=target==="home"?"homeView":target==="preview"?"previewView":"builderView";
+    var id=target==="home"?"homeView":target==="preview"?"previewView":target==="teams"?"teamsView":"builderView";
     $("#"+id).classList.add("is-active");
     $$(".bottom-nav button").forEach(function(b){b.classList.toggle("is-active",b.dataset.nav===target)});
     if(target==="preview")renderPreview();
+    document.dispatchEvent(new CustomEvent("vcg:navigate",{detail:{target:target}}));
     window.scrollTo({top:0,behavior:"smooth"});
   }
 
@@ -584,7 +585,8 @@
     defaultTeamName:function(){
       return gameConfig[state.game].name+" team";
     },
-    toast:showToast
+    toast:showToast,
+    navigate:navigate
   };
 
   function init(){

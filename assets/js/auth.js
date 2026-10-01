@@ -73,7 +73,6 @@
     $("#accountBackdrop").hidden=false;
     document.body.style.overflow="hidden";
     if(!auth.user)setPane(pane||"login");
-    else loadTeams();
   }
 
   function closeAccount(){
@@ -112,11 +111,13 @@
     renderAccountButton();
     $("#accountGuest").hidden=!!auth.user;
     $("#accountUser").hidden=!auth.user;
+    $("#teamsGuest").hidden=!!auth.user;
+    $("#teamsUser").hidden=!auth.user;
     if(auth.user){
       renderProfile();
       if(window.VCGApp)window.VCGApp.applyProfileDefaults(auth.user,false);
     }else{
-      auth.teams=[];auth.currentTeamId=null;
+      auth.teams=[];auth.currentTeamId=null;renderTeams();
     }
   }
 
@@ -125,20 +126,35 @@
     return mons.map(function(mon){return mon.image?'<img src="'+esc(mon.image)+'" alt="">':''}).join("");
   }
 
+  function friendlyGame(game){
+    return {champions:"Pokémon Champions",sv:"Scarlet / Violet",swsh:"Sword / Shield",custom:"Custom / Other"}[game]||game;
+  }
+
   function renderTeams(){
     var list=$("#cloudTeamList");
+    if(!list)return;
+    $("#savedTeamCount").textContent=auth.teams.length+" "+(auth.teams.length===1?"team":"teams");
+    if(!auth.user){
+      list.innerHTML="";
+      return;
+    }
     if(!auth.teams.length){
-      list.innerHTML='<div class="cloud-empty">No saved teams yet.</div>';
+      list.innerHTML='<div class="cloud-empty"><strong>No saved teams yet</strong><span>Save your current build above and it will appear here.</span></div>';
       return;
     }
     list.innerHTML=auth.teams.map(function(team){
       var selected=Number(auth.currentTeamId)===Number(team.id);
+      var mons=team.payload&&Array.isArray(team.payload.team)?team.payload.team.filter(Boolean):[];
       return '<article class="cloud-team'+(selected?' is-current':'')+'" data-team-id="'+team.id+'">'+
         '<button type="button" class="cloud-team-open" data-load-team="'+team.id+'">'+
           '<div class="cloud-team-images">'+teamImages(team)+'</div>'+
-          '<div><strong>'+esc(team.name)+'</strong><small>'+esc(team.game.toUpperCase())+' · '+esc(team.updatedAt)+'</small></div>'+
+          '<div class="cloud-team-copy"><strong>'+esc(team.name)+'</strong><small>'+esc(friendlyGame(team.game))+' · '+mons.length+'/6 Pokémon</small></div>'+
         '</button>'+
-        '<button type="button" class="cloud-team-delete" data-delete-team="'+team.id+'" aria-label="Delete '+esc(team.name)+'">×</button>'+
+        '<div class="cloud-team-actions">'+
+          '<button type="button" data-rename-team="'+team.id+'">Rename</button>'+
+          '<button type="button" data-duplicate-team="'+team.id+'">Duplicate</button>'+
+          '<button type="button" class="danger-link" data-delete-team="'+team.id+'">Delete</button>'+
+        '</div>'+
       '</article>';
     }).join("");
   }
@@ -150,18 +166,18 @@
       auth.teams=data.teams||[];
       renderTeams();
     }catch(err){
-      message("#profileMessage",err.message,true);
+      message("#teamPageMessage",err.message,true);
     }
   }
 
-  async function saveCurrentTeam(){
+  async function saveCurrentTeam(forceNew){
     if(!auth.user){openAccount("login");return}
     if(!window.VCGApp)return;
     var payload=window.VCGApp.exportTeam();
     var name=$("#cloudTeamName").value.trim()||window.VCGApp.defaultTeamName();
     try{
       var data=await api("teams.php",{method:"POST",body:{
-        id:auth.currentTeamId||undefined,
+        id:forceNew?undefined:(auth.currentTeamId||undefined),
         name:name,
         game:payload.game,
         payload:payload
@@ -169,11 +185,36 @@
       auth.currentTeamId=data.team.id;
       $("#cloudTeamName").value=data.team.name;
       await loadTeams();
-      message("#profileMessage","Team saved.");
-      window.VCGApp.toast("Team saved to your account");
+      message("#teamPageMessage",forceNew?"New team saved.":"Team saved.");
+      window.VCGApp.toast(forceNew?"Saved as a new team":"Team saved to your account");
     }catch(err){
-      message("#profileMessage",err.message,true);
+      message("#teamPageMessage",err.message,true);
     }
+  }
+
+  async function renameTeam(id){
+    var team=auth.teams.filter(function(item){return Number(item.id)===Number(id)})[0];
+    if(!team)return;
+    var next=prompt("Rename team",team.name);
+    if(next===null)return;
+    next=next.trim();
+    if(!next)return;
+    try{
+      var data=await api("teams.php",{method:"POST",body:{id:team.id,name:next,game:team.game,payload:team.payload}});
+      if(Number(auth.currentTeamId)===Number(team.id))$("#cloudTeamName").value=data.team.name;
+      await loadTeams();
+      message("#teamPageMessage","Team renamed.");
+    }catch(err){message("#teamPageMessage",err.message,true)}
+  }
+
+  async function duplicateTeam(id){
+    var team=auth.teams.filter(function(item){return Number(item.id)===Number(id)})[0];
+    if(!team)return;
+    try{
+      await api("teams.php",{method:"POST",body:{name:team.name+" copy",game:team.game,payload:team.payload}});
+      await loadTeams();
+      message("#teamPageMessage","Team duplicated.");
+    }catch(err){message("#teamPageMessage",err.message,true)}
   }
 
   async function login(event){
@@ -258,7 +299,11 @@
       auth.user=data.user;
       renderAuth();
       if(window.VCGApp)window.VCGApp.applyProfileDefaults(auth.user,true);
-      message("#profileMessage","Profile saved.");
+      message("#profileMessage","✓ Profile saved.");
+      $("#profileMessage").classList.add("is-success");
+      var saveButton=$("#profileSaveButton");
+      saveButton.textContent="✓ Saved";
+      setTimeout(function(){saveButton.textContent="Save profile";$("#profileMessage").classList.remove("is-success")},1800);
     }catch(err){message("#profileMessage",err.message,true)}
   }
 
@@ -313,8 +358,18 @@
 
   function wire(){
     $("#accountButton").addEventListener("click",function(){openAccount()});
-    $("#saveCloudButton").addEventListener("click",function(){if(auth.user){openAccount();setTimeout(function(){$("#cloudTeamName").focus()},100)}else openAccount("login")});
+    $("#saveCloudButton").addEventListener("click",function(){
+      if(auth.user){
+        window.VCGApp.navigate("teams");
+        setTimeout(function(){
+          if(!$("#cloudTeamName").value)$("#cloudTeamName").value=window.VCGApp.defaultTeamName();
+          $("#cloudTeamName").focus();
+        },100);
+      }else openAccount("login");
+    });
     $("#closeAccountButton").addEventListener("click",closeAccount);
+    $("#manageTeamsButton").addEventListener("click",function(){closeAccount();window.VCGApp.navigate("teams")});
+    $("#teamsSignInButton").addEventListener("click",function(){openAccount("login")});
 
     $$("[data-auth-pane]").forEach(function(btn){btn.addEventListener("click",function(){setPane(btn.dataset.authPane)})});
     $("#forgotPasswordButton").addEventListener("click",function(){setPane("forgot");$("#forgotEmail").value=$("#loginEmail").value.trim()});
@@ -331,13 +386,28 @@
     $("#avatarInput").addEventListener("change",function(e){uploadAvatar(e.target.files&&e.target.files[0])});
     $("#removeAvatarButton").addEventListener("click",removeAvatar);
     $("#logoutButton").addEventListener("click",logout);
-    $("#saveCurrentCloudTeam").addEventListener("click",saveCurrentTeam);
+    $("#saveCurrentCloudTeam").addEventListener("click",function(){saveCurrentTeam(false)});
+    $("#saveAsNewCloudTeam").addEventListener("click",function(){saveCurrentTeam(true)});
 
     $("#cloudTeamList").addEventListener("click",function(e){
       var load=e.target.closest("[data-load-team]");
       if(load){loadTeam(load.dataset.loadTeam);return}
+      var rename=e.target.closest("[data-rename-team]");
+      if(rename){renameTeam(rename.dataset.renameTeam);return}
+      var duplicate=e.target.closest("[data-duplicate-team]");
+      if(duplicate){duplicateTeam(duplicate.dataset.duplicateTeam);return}
       var del=e.target.closest("[data-delete-team]");
       if(del)deleteTeam(del.dataset.deleteTeam);
+    });
+
+    document.addEventListener("vcg:navigate",function(e){
+      if(e.detail&&e.detail.target==="teams"){
+        renderAuth();
+        if(auth.user){
+          if(!$("#cloudTeamName").value)$("#cloudTeamName").value=window.VCGApp.defaultTeamName();
+          loadTeams();
+        }
+      }
     });
 
     document.addEventListener("keydown",function(e){

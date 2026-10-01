@@ -8,9 +8,9 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.2.2">
-  <script defer src="/assets/js/app.js?v=0.2.2"></script>
-  <script defer src="/assets/js/auth.js?v=0.2.2"></script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.2.3">
+  <script defer src="/assets/js/app.js?v=0.2.3"></script>
+  <script defer src="/assets/js/auth.js?v=0.2.3"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -154,11 +154,53 @@
           <div class="paper" id="screenPreview"></div>
         </div>
       </section>
+
+      <section class="view teams-view" id="teamsView" aria-labelledby="teamsTitle">
+        <div class="teams-page-head">
+          <div>
+            <span class="eyebrow">Cloud library</span>
+            <h1 id="teamsTitle">My Teams</h1>
+          </div>
+          <button class="button primary" type="button" data-nav="home">Build a new team</button>
+        </div>
+
+        <div id="teamsGuest" class="teams-guest-card" hidden>
+          <div class="teams-guest-icon" aria-hidden="true">☁</div>
+          <h2>Save teams to your account</h2>
+          <p>Sign in to keep your builds together and access them on your other devices.</p>
+          <button class="button primary" id="teamsSignInButton" type="button">Sign in</button>
+        </div>
+
+        <div id="teamsUser" hidden>
+          <section class="team-save-panel">
+            <div>
+              <span class="eyebrow">Current build</span>
+              <h2>Save this team</h2>
+            </div>
+            <div class="cloud-save-row">
+              <input id="cloudTeamName" maxlength="100" placeholder="Team name">
+              <button class="button primary" id="saveCurrentCloudTeam" type="button">Save team</button>
+              <button class="button secondary" id="saveAsNewCloudTeam" type="button">Save as new</button>
+            </div>
+            <div class="account-message" id="teamPageMessage" role="status" aria-live="polite"></div>
+          </section>
+
+          <div class="teams-library-head">
+            <div>
+              <span class="eyebrow">Saved builds</span>
+              <h2>Your teams</h2>
+            </div>
+            <span class="completion" id="savedTeamCount">0 teams</span>
+          </div>
+          <div class="cloud-team-list teams-library" id="cloudTeamList"></div>
+        </div>
+      </section>
     </main>
 
     <nav class="bottom-nav" aria-label="Main navigation">
       <button class="is-active" data-nav="home"><span>⌂</span><small>Home</small></button>
       <button data-nav="team"><span>◫</span><small>Team</small></button>
+      <button data-nav="teams"><span>☁</span><small>My Teams</small></button>
       <button data-nav="preview"><span>▤</span><small>Preview</small></button>
     </nav>
   </div>
@@ -345,19 +387,10 @@
               <label><span>Player ID</span><input id="profilePlayerId" inputmode="numeric"></label>
               <label><span>Year of birth</span><input id="profileYearOfBirth" inputmode="numeric" maxlength="4" placeholder="YYYY"></label>
             </div>
-            <button class="button primary" type="submit">Save profile</button>
+            <button class="button primary" id="profileSaveButton" type="submit">Save profile</button>
           </form>
 
-          <section class="cloud-section">
-            <div class="section-heading compact">
-              <div><span class="eyebrow">Cloud saves</span><h2>My Teams</h2></div>
-            </div>
-            <div class="cloud-save-row">
-              <input id="cloudTeamName" maxlength="100" placeholder="Team name">
-              <button class="button primary" id="saveCurrentCloudTeam" type="button">Save current team</button>
-            </div>
-            <div class="cloud-team-list" id="cloudTeamList"></div>
-          </section>
+          <button class="button secondary account-teams-button" id="manageTeamsButton" type="button">Manage My Teams</button>
 
           <button class="button secondary logout-button" id="logoutButton" type="button">Sign out</button>
           <div class="account-message" id="profileMessage" role="status" aria-live="polite"></div>
