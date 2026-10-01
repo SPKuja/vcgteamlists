@@ -334,3 +334,15 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .teams-library .cloud-team-open{grid-template-columns:92px minmax(0,1fr) 82px}
   .cloud-game-logos.single img{max-width:78px}
 }
+
+.save-team-dialog{border:0;padding:0;background:transparent;max-width:none;max-height:none}
+.save-team-dialog::backdrop{background:rgba(15,17,28,.48);backdrop-filter:blur(7px)}
+.save-team-modal{width:min(calc(100vw - 28px),470px);background:var(--bg);border:1px solid rgba(255,255,255,.82);border-radius:26px;padding:22px;box-shadow:0 28px 90px rgba(20,22,34,.26)}
+.save-team-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
+.save-team-modal-head h2{margin:0;font-size:28px;letter-spacing:-.04em}
+.save-team-name-field{display:grid;gap:7px}
+.save-team-name-field span{font-size:11px;font-weight:850;color:var(--muted)}
+.save-team-name-field input{width:100%}
+.save-team-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.save-team-actions .button{width:100%}
+@media(max-width:460px){.save-team-modal{padding:18px}.save-team-actions{grid-template-columns:1fr}}

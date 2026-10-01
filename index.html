@@ -8,9 +8,9 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.3.7">
-  <script defer src="/assets/js/app.js?v=0.3.7"></script>
-  <script defer src="/assets/js/auth.js?v=0.3.7"></script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.3.8">
+  <script defer src="/assets/js/app.js?v=0.3.8"></script>
+  <script defer src="/assets/js/auth.js?v=0.3.8"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -140,8 +140,8 @@
         <div class="team-grid" id="teamGrid" aria-live="polite"></div>
 
         <div class="builder-actions">
-          <button class="button secondary" id="saveLocalButton">Save draft on this device</button>
-          <button class="button secondary" id="saveCloudButton">Save to account</button>
+          <button class="button secondary" id="saveLocalButton">Save as draft</button>
+          <button class="button secondary" id="saveCloudButton" hidden>Save Team</button>
           <button class="button primary" data-nav="preview">Preview team sheet</button>
         </div>
       </section>
@@ -348,6 +348,27 @@
         </button>
       </div>
     </div>
+  </dialog>
+
+  <dialog class="save-team-dialog" id="saveTeamDialog" aria-labelledby="saveTeamDialogTitle">
+    <form class="save-team-modal" id="saveTeamForm">
+      <header class="save-team-modal-head">
+        <div>
+          <span class="eyebrow">Save team</span>
+          <h2 id="saveTeamDialogTitle">Name your team</h2>
+        </div>
+        <button class="icon-button" id="closeSaveTeamDialog" type="button" aria-label="Close save team dialog">×</button>
+      </header>
+      <label class="save-team-name-field">
+        <span>Team name</span>
+        <input id="saveTeamName" maxlength="100" autocomplete="off" required>
+      </label>
+      <div class="save-team-actions">
+        <button class="button secondary" id="cancelSaveTeam" type="button">Cancel</button>
+        <button class="button primary" type="submit">Save Team</button>
+      </div>
+      <div class="account-message" id="saveTeamMessage" role="status" aria-live="polite"></div>
+    </form>
   </dialog>
 
   <div class="editor-backdrop" id="editorBackdrop" hidden>

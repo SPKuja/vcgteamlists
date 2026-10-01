@@ -158,16 +158,36 @@
 
   function updateBuilderSaveButton(savedNow){
     var btn=$("#saveCloudButton");if(!btn)return;
-    if(!auth.user){btn.textContent="Save to account";return}
-    if(savedNow){btn.textContent="✓ Saved";return}
-    btn.textContent=auth.currentTeamId?"Update saved team":"Save to account";
+    btn.hidden=!auth.user;
+    if(!auth.user)return;
+    btn.textContent=savedNow?"✓ Saved":"Save Team";
   }
 
-  async function saveFromBuilder(){
-    if(!auth.user){showProfile("login");return}
+  function openSaveTeamDialog(){
+    if(!auth.user)return;
     var payload=window.VCGApp.exportTeam();
     var existing=auth.teams.filter(function(t){return Number(t.id)===Number(auth.currentTeamId)})[0];
-    var name=existing?existing.name:suggestedTeamName(payload);
+    $("#saveTeamName").value=existing?existing.name:suggestedTeamName(payload);
+    message("#saveTeamMessage","");
+    var dialog=$("#saveTeamDialog");
+    if(dialog&&typeof dialog.showModal==="function"){
+      dialog.showModal();
+      setTimeout(function(){$("#saveTeamName").focus();$("#saveTeamName").select()},50);
+    }
+  }
+
+  function closeSaveTeamDialog(){
+    var dialog=$("#saveTeamDialog");
+    if(dialog&&dialog.open)dialog.close();
+  }
+
+  async function saveFromBuilder(event){
+    if(event)event.preventDefault();
+    if(!auth.user)return;
+    var payload=window.VCGApp.exportTeam();
+    var existing=auth.teams.filter(function(t){return Number(t.id)===Number(auth.currentTeamId)})[0];
+    var name=$("#saveTeamName").value.trim();
+    if(!name){message("#saveTeamMessage","Enter a team name.",true);return}
     try{
       var data=await api("teams.php",{method:"POST",body:{
         id:auth.currentTeamId||undefined,name:name,game:payload.game,payload:payload
@@ -175,10 +195,11 @@
       auth.currentTeamId=data.team.id;
       if(window.VCGApp)window.VCGApp.markSaved();
       await loadTeams();
+      closeSaveTeamDialog();
       updateBuilderSaveButton(true);
-      window.VCGApp.toast(existing?"Saved team updated":"Team saved to your account");
+      window.VCGApp.toast(existing?"Team updated":"Team saved to your account");
       setTimeout(function(){updateBuilderSaveButton(false)},1600);
-    }catch(err){window.VCGApp.toast(err.message)}
+    }catch(err){message("#saveTeamMessage",err.message,true)}
   }
 
   async function login(event){
@@ -336,7 +357,11 @@
 
   function wire(){
     $("#accountButton").addEventListener("click",function(){showProfile()});
-    $("#saveCloudButton").addEventListener("click",saveFromBuilder);
+    $("#saveCloudButton").addEventListener("click",openSaveTeamDialog);
+    $("#saveTeamForm").addEventListener("submit",saveFromBuilder);
+    $("#closeSaveTeamDialog").addEventListener("click",closeSaveTeamDialog);
+    $("#cancelSaveTeam").addEventListener("click",closeSaveTeamDialog);
+    $("#saveTeamDialog").addEventListener("click",function(e){if(e.target===this)closeSaveTeamDialog()});
     $("#manageTeamsButton").addEventListener("click",function(){window.VCGApp.navigate("teams")});
     $("#teamsSignInButton").addEventListener("click",function(){showProfile("login")});
 
@@ -370,7 +395,7 @@
       auth.currentTeamId=null;
       updateBuilderSaveButton(false);
     });
-    document.addEventListener("vcg:buildsaved",function(){updateBuilderSaveButton(true)});
+    document.addEventListener("vcg:buildsaved",function(){updateBuilderSaveButton(false)});
     document.addEventListener("vcg:builddirty",function(){updateBuilderSaveButton(false)});
 
     document.addEventListener("vcg:navigate",function(e){
