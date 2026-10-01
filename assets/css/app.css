@@ -413,3 +413,17 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .print-move .move-type-badge{right:1.2mm;width:5.6mm;height:5.6mm;font-size:4pt;border-width:.35pt}
   .print-stats{margin-top:2.2mm}
 }
+
+/* Use uploaded game-style type icons from /images/types */
+.move-type-badge{background:transparent;border:0;width:24px;height:24px;right:4px}
+.move-type-icon{display:block;width:24px;height:24px;object-fit:contain;filter:drop-shadow(0 1px 1px rgba(0,0,0,.18))}
+.mon-type{gap:3px;padding:2px 6px 2px 3px}
+.mon-type-icon{display:block;width:13px;height:13px;object-fit:contain;flex:0 0 13px}
+.mon-type>span{line-height:1}
+
+@media print{
+  .print-move .move-type-badge{width:6mm;height:6mm;right:1mm}
+  .print-move .move-type-icon{width:6mm;height:6mm}
+  .print-mon-types .mon-type{display:inline-flex;align-items:center;gap:.7mm;padding:.45mm 1.2mm .45mm .6mm}
+  .print-mon-types .mon-type-icon{width:3.4mm;height:3.4mm;flex-basis:3.4mm}
+}

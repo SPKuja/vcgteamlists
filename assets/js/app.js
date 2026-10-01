@@ -641,13 +641,12 @@
     return String(type||"").toLowerCase().replace(/[^a-z]/g,"")||"unknown";
   }
 
-  function moveTypeMark(type){
-    var marks={
-      normal:"N",fire:"F",water:"W",electric:"E",grass:"G",ice:"I",
-      fighting:"FT",poison:"P",ground:"GD",flying:"FL",psychic:"PS",
-      bug:"B",rock:"R",ghost:"GH",dragon:"DR",dark:"DK",steel:"ST",fairy:"FA"
-    };
-    return marks[moveTypeKey(type)]||"•";
+  function typeIconHtml(type,className){
+    var key=moveTypeKey(type);
+    if(key==="unknown")return "";
+    var base="/images/types/"+key;
+    return '<img class="'+className+'" src="'+base+'.png" alt="'+escapeHtml(type)+'" '+
+      'onerror="if(!this.dataset.fallback){this.dataset.fallback=\'webp\';this.src=\''+base+'.webp\'}else if(this.dataset.fallback===\'webp\'){this.dataset.fallback=\'svg\';this.src=\''+base+'.svg\'}else{this.style.display=\'none\'}">';
   }
 
   function moveTile(move,type,damageClass,printMode){
@@ -658,14 +657,14 @@
     return '<div class="'+cls+' move-type-'+key+'" title="'+escapeHtml(typeText+(damageClass?" · "+damageClass:""))+'">'+
       '<span class="'+cls+'-name">'+escapeHtml(label)+'</span>'+
       (damageClass?'<small>'+escapeHtml(damageClass)+'</small>':'')+
-      '<span class="move-type-badge" aria-label="'+escapeHtml(typeText)+'">'+escapeHtml(moveTypeMark(type))+'</span>'+
+      '<span class="move-type-badge" aria-label="'+escapeHtml(typeText)+'">'+typeIconHtml(type,"move-type-icon")+'</span>'+
     '</div>';
   }
 
   function monTypePills(mon,printMode){
     var cls=printMode?"print-mon-types":"paper-mon-types";
     return '<div class="'+cls+'">'+(mon.types||[]).map(function(type){
-      return '<span class="mon-type type-'+moveTypeKey(type)+'">'+escapeHtml(type)+'</span>';
+      return '<span class="mon-type type-'+moveTypeKey(type)+'">'+typeIconHtml(type,"mon-type-icon")+'<span>'+escapeHtml(type)+'</span></span>';
     }).join("")+'</div>';
   }
 
