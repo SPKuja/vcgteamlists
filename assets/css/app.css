@@ -967,3 +967,25 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .team-insights-grid{grid-template-columns:1fr}
 }
 @media(max-width:420px){.insight-types{grid-template-columns:1fr}}
+
+/* Improve Team Insights readability */
+.team-insights-head h2{font-size:25px}
+.insight-summary-stats span{font-size:11px;padding:7px 10px}
+.insight-summary-stats strong{font-size:14px}
+.insight-panel h3{font-size:15px}
+.insight-panel p{font-size:11px;line-height:1.5}
+.insight-type{padding:9px 10px;gap:8px}
+.insight-type-icon{width:21px;height:21px;flex-basis:21px}
+.insight-type strong{font-size:11px}
+.insight-type small{font-size:9px;margin-top:3px}
+.insight-note{font-size:10px!important;line-height:1.5!important}
+.team-insights-empty{font-size:13px}
+
+@media(max-width:699px){
+  .team-insights-head h2{font-size:23px}
+  .insight-panel h3{font-size:15px}
+  .insight-panel p{font-size:11px}
+  .insight-type strong{font-size:11px}
+  .insight-type small{font-size:9px}
+  .insight-note{font-size:10px!important}
+}
