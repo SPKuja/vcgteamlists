@@ -24,6 +24,10 @@ jobs:
           test -f index.html
           test -f manifest.webmanifest
           test -f assets/js/app.js
+          node --check assets/js/app.js
+          if compgen -G "api/*.php" > /dev/null; then
+            for file in api/*.php; do php -l "$file"; done
+          fi
 
       - name: Configure SSH
         env:
@@ -35,7 +39,48 @@ jobs:
           chmod 600 ~/.ssh/vcgteamlists_deploy
           ssh-keyscan -H "$DREAMHOST_HOST" >> ~/.ssh/known_hosts
 
-      - name: Deploy static site
+      - name: Prepare private runtime configuration
+        env:
+          DREAMHOST_HOST: ${{ vars.DREAMHOST_HOST }}
+          DREAMHOST_USER: ${{ vars.DREAMHOST_USER }}
+          MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          MYSQL_USER: ${{ secrets.MYSQL_USER }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+        run: |
+          ssh -i ~/.ssh/vcgteamlists_deploy "$DREAMHOST_USER@$DREAMHOST_HOST" '
+            umask 077
+            mkdir -p ~/.config/vcgteamlists ~/.local/share/vcgteamlists/avatars
+            chmod 700 ~/.config/vcgteamlists ~/.local/share/vcgteamlists ~/.local/share/vcgteamlists/avatars
+            if [ ! -s ~/.config/vcgteamlists/app.key ]; then
+              openssl rand -hex 32 > ~/.config/vcgteamlists/app.key
+              chmod 600 ~/.config/vcgteamlists/app.key
+            fi
+          '
+          python3 - <<'PY'
+          import json, os
+          home = f"/home/{os.environ['DREAMHOST_USER']}"
+          cfg = {
+              "db_host": os.environ["MYSQL_HOST"],
+              "db_name": os.environ["MYSQL_DATABASE"],
+              "db_user": os.environ["MYSQL_USER"],
+              "db_password": os.environ["MYSQL_PASSWORD"],
+              "base_url": "https://vcg.pokemonleagueswindon.co.uk",
+              "mail_from": "noreply@pokemonleagueswindon.co.uk",
+              "data_dir": home + "/.local/share/vcgteamlists",
+              "app_key_file": home + "/.config/vcgteamlists/app.key",
+          }
+          payload = json.dumps(cfg, ensure_ascii=False)
+          with open("/tmp/vcg-config.php", "w", encoding="utf-8") as f:
+              f.write("<?php\nreturn json_decode(<<<'JSON'\n")
+              f.write(payload)
+              f.write("\nJSON, true, 512, JSON_THROW_ON_ERROR);\n")
+          PY
+          scp -i ~/.ssh/vcgteamlists_deploy /tmp/vcg-config.php "$DREAMHOST_USER@$DREAMHOST_HOST:.config/vcgteamlists/config.php"
+          ssh -i ~/.ssh/vcgteamlists_deploy "$DREAMHOST_USER@$DREAMHOST_HOST" 'chmod 600 ~/.config/vcgteamlists/config.php'
+          rm -f /tmp/vcg-config.php
+
+      - name: Deploy site
         env:
           DREAMHOST_HOST: ${{ vars.DREAMHOST_HOST }}
           DREAMHOST_USER: ${{ vars.DREAMHOST_USER }}
@@ -49,3 +94,11 @@ jobs:
             --exclude='.htaccess' \
             -e "ssh -i ~/.ssh/vcgteamlists_deploy" \
             ./ "$DREAMHOST_USER@$DREAMHOST_HOST:$DREAMHOST_PATH/"
+
+      - name: Run database migrations
+        env:
+          DREAMHOST_HOST: ${{ vars.DREAMHOST_HOST }}
+          DREAMHOST_USER: ${{ vars.DREAMHOST_USER }}
+          DREAMHOST_PATH: ${{ vars.DREAMHOST_PATH }}
+        run: |
+          ssh -i ~/.ssh/vcgteamlists_deploy "$DREAMHOST_USER@$DREAMHOST_HOST" "php '$DREAMHOST_PATH/api/migrate.php'"
