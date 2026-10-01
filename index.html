@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#6757e8">
+  <meta name="description" content="Build, print and share clean Pokémon VGC team lists.">
+  <title>VGC Team Lists</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/css/app.css">
+  <script defer src="/assets/js/app.js"></script>
+</head>
+<body data-game="champions">
+  <div class="app-shell">
+    <header class="app-bar">
+      <button class="brand" data-nav="home" aria-label="Go home">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        <span class="brand-copy"><strong>VGC Team Lists</strong><small>Build · Print · Share</small></span>
+      </button>
+      <span class="beta-pill">Beta</span>
+    </header>
+
+    <main>
+      <section class="view is-active" id="homeView" aria-labelledby="homeTitle">
+        <div class="hero">
+          <span class="eyebrow">Tournament prep, without the spreadsheet</span>
+          <h1 id="homeTitle">Build a team sheet that looks as good as your team.</h1>
+          <p>Choose the game you are playing. We will adapt the fields, keep every Pokémon searchable, and create a clean list ready to print or share.</p>
+        </div>
+
+        <div class="section-heading">
+          <div><span class="eyebrow">Step 1</span><h2>Choose your game</h2></div>
+          <p>This changes the information we ask for — never which Pokémon you can choose.</p>
+        </div>
+
+        <div class="game-grid">
+          <button class="game-card champions" data-select-game="champions">
+            <div class="game-art" aria-hidden="true">
+              <img class="art-one" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png" alt="">
+              <img class="art-two" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/448.png" alt="">
+            </div>
+            <div class="game-copy">
+              <span class="game-kicker">Current generation</span>
+              <h3>Pokémon Champions</h3>
+              <p>Stat Alignment, Stat Points and final battle stats.</p>
+              <span class="choose-link">Build a Champions team <span>→</span></span>
+            </div>
+          </button>
+
+          <button class="game-card sv" data-select-game="sv">
+            <div class="game-art" aria-hidden="true">
+              <img class="art-one" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1007.png" alt="">
+              <img class="art-two" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1008.png" alt="">
+            </div>
+            <div class="game-copy">
+              <span class="game-kicker">Nintendo Switch</span>
+              <h3>Scarlet / Violet</h3>
+              <p>Tera Type, nature/alignment, level and final stats.</p>
+              <span class="choose-link">Build an S/V team <span>→</span></span>
+            </div>
+          </button>
+
+          <button class="game-card swsh" data-select-game="swsh">
+            <div class="game-art" aria-hidden="true">
+              <img class="art-one" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/888.png" alt="">
+              <img class="art-two" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/889.png" alt="">
+            </div>
+            <div class="game-copy">
+              <span class="game-kicker">Nintendo Switch</span>
+              <h3>Sword / Shield</h3>
+              <p>Nature, level, final stats and Gigantamax capability.</p>
+              <span class="choose-link">Build a Sw/Sh team <span>→</span></span>
+            </div>
+          </button>
+
+          <button class="game-card custom" data-select-game="custom">
+            <div class="game-art" aria-hidden="true">
+              <img class="art-one" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png" alt="">
+              <img class="art-two" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/133.png" alt="">
+            </div>
+            <div class="game-copy">
+              <span class="game-kicker">Flexible preset</span>
+              <h3>Custom / Other</h3>
+              <p>A flexible sheet for casual formats, older games or custom events.</p>
+              <span class="choose-link">Build a custom team <span>→</span></span>
+            </div>
+          </button>
+        </div>
+
+        <div class="principles">
+          <article><span class="principle-icon">✦</span><div><h3>Designed to look good</h3><p>Visual team building on screen, clean tournament formatting on paper.</p></div></article>
+          <article><span class="principle-icon">◫</span><div><h3>Made for your phone</h3><p>Large touch targets, full-screen editing and an installable app-like experience.</p></div></article>
+          <article><span class="principle-icon">↗</span><div><h3>Built to leave the screen</h3><p>Print an A4 list or use your phone's native share sheet.</p></div></article>
+        </div>
+      </section>
+
+      <section class="view" id="builderView" aria-labelledby="builderTitle">
+        <div class="builder-hero">
+          <div>
+            <button class="back-link" data-nav="home">← Change game</button>
+            <span class="eyebrow">Your team</span>
+            <h1 id="builderTitle">Pokémon Champions</h1>
+            <p id="builderSubtitle">Tap a slot to add or edit a Pokémon.</p>
+          </div>
+          <div class="builder-game-art" id="builderGameArt" aria-hidden="true"></div>
+        </div>
+
+        <section class="details-card">
+          <div class="section-heading compact">
+            <div><span class="eyebrow">Team details</span><h2>Who is playing?</h2></div>
+            <button class="text-button" id="clearTeamButton">Clear team</button>
+          </div>
+          <div class="details-grid">
+            <label><span>Player name</span><input id="playerName" autocomplete="name" placeholder="Your name"></label>
+            <label><span>Trainer name</span><input id="trainerName" placeholder="In-game name"></label>
+            <label><span>Event</span><input id="eventName" placeholder="Event name"></label>
+            <label><span>Team name</span><input id="teamName" placeholder="Optional"></label>
+          </div>
+        </section>
+
+        <div class="section-heading compact team-heading">
+          <div><span class="eyebrow">Six slots</span><h2>Battle team</h2></div>
+          <span class="completion" id="completionCount">0 / 6 complete</span>
+        </div>
+
+        <div class="team-grid" id="teamGrid" aria-live="polite"></div>
+
+        <div class="builder-actions">
+          <button class="button secondary" id="saveLocalButton">Save on this device</button>
+          <button class="button primary" data-nav="preview">Preview team sheet</button>
+        </div>
+      </section>
+
+      <section class="view" id="previewView" aria-labelledby="previewTitle">
+        <div class="preview-head">
+          <div>
+            <button class="back-link" data-nav="team">← Back to team</button>
+            <span class="eyebrow">Step 3</span>
+            <h1 id="previewTitle">Team sheet preview</h1>
+            <p>Screen styling is kept separate from the document so the printed version stays crisp and practical.</p>
+          </div>
+          <div class="preview-actions">
+            <button class="button secondary" id="shareButton">Share</button>
+            <button class="button primary" id="printButton">Print / Save PDF</button>
+          </div>
+        </div>
+
+        <div class="segmented" role="group" aria-label="Team sheet type">
+          <button class="is-selected" data-sheet-mode="full">Full / registration</button>
+          <button data-sheet-mode="open">Open team sheet</button>
+        </div>
+
+        <div class="preview-stage">
+          <div class="paper" id="screenPreview"></div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="is-active" data-nav="home"><span>⌂</span><small>Home</small></button>
+      <button data-nav="team"><span>◫</span><small>Team</small></button>
+      <button data-nav="preview"><span>▤</span><small>Preview</small></button>
+    </nav>
+  </div>
+
+  <div class="editor-backdrop" id="editorBackdrop" hidden>
+    <section class="editor-sheet" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+      <div class="sheet-grabber" aria-hidden="true"></div>
+      <header class="editor-header">
+        <div><span class="eyebrow" id="slotLabel">Team slot 1</span><h2 id="editorTitle">Add Pokémon</h2></div>
+        <button class="icon-button" id="closeEditorButton" aria-label="Close editor">×</button>
+      </header>
+
+      <div class="editor-scroll">
+        <div class="pokemon-picker">
+          <div class="selected-pokemon" id="selectedPokemon">
+            <div class="pokemon-image-wrap"><span class="empty-ball">+</span><img id="editorPokemonImage" alt="" hidden></div>
+            <div><span class="eyebrow">Pokémon</span><strong id="editorPokemonName">Choose a Pokémon</strong><div class="type-row" id="typeRow"></div></div>
+          </div>
+
+          <label class="search-field">
+            <span>Search Pokémon</span>
+            <div class="search-input-wrap"><span>⌕</span><input id="pokemonSearch" autocomplete="off" placeholder="Start typing, e.g. Salamence"></div>
+          </label>
+          <div class="search-results" id="pokemonResults" hidden></div>
+          <p class="field-hint">Search is intentionally not restricted by game or regulation.</p>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title"><span>01</span><div><h3>Battle details</h3><p>Everything visible on the core team list.</p></div></div>
+          <div class="form-grid two">
+            <label><span>Ability</span><input id="abilityInput" placeholder="e.g. Intimidate"></label>
+            <label><span>Held item</span><input id="itemInput" placeholder="e.g. Focus Sash"></label>
+            <label><span>Gender</span><select id="genderInput"><option value="">Not specified</option><option>Male</option><option>Female</option><option>Genderless</option></select></label>
+            <label><span>Level</span><input id="levelInput" type="number" inputmode="numeric" min="1" max="100" value="50"></label>
+          </div>
+          <div id="gameSpecificFields"></div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title"><span>02</span><div><h3>Final stats</h3><p>Enter the values shown in-game for this Pokémon.</p></div></div>
+          <div class="stat-grid" id="finalStats"></div>
+        </div>
+
+        <div class="form-section" id="statPointsSection">
+          <div class="form-section-title"><span>03</span><div><h3>Stat Points</h3><p>Champions training allocation.</p></div></div>
+          <div class="stat-grid" id="statPoints"></div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title"><span id="movesNumber">04</span><div><h3>Moves</h3><p>Free type so new or unusual move data never gets blocked.</p></div></div>
+          <div class="move-grid">
+            <label><span>Move 1</span><input class="move-input" data-move="0" placeholder="Move"></label>
+            <label><span>Move 2</span><input class="move-input" data-move="1" placeholder="Move"></label>
+            <label><span>Move 3</span><input class="move-input" data-move="2" placeholder="Move"></label>
+            <label><span>Move 4</span><input class="move-input" data-move="3" placeholder="Move"></label>
+          </div>
+        </div>
+      </div>
+
+      <footer class="editor-footer">
+        <button class="button danger ghost" id="removePokemonButton">Remove</button>
+        <button class="button primary" id="savePokemonButton">Save Pokémon</button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div id="printRoot" class="print-root"></div>
+</body>
+</html>

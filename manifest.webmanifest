@@ -1,0 +1,12 @@
+{
+  "name": "VGC Team Lists",
+  "short_name": "VGC Lists",
+  "description": "Build, print and share clean Pokémon VGC team lists.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f6fb",
+  "theme_color": "#6757e8",
+  "icons": [
+    {"src":"/assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
