@@ -6,6 +6,7 @@
   var LEGACY_STORAGE_KEY="vcg-teamlists-v1";
   var LOCAL_SAVE_KEY="vcg-saved-build-v1";
   var LIST_CACHE_KEY="vcg-pokemon-species-list-v2";
+  var MOVE_META_CACHE_KEY="vcg-move-meta-v1";
   var statKeys=["hp","attack","defense","specialAttack","specialDefense","speed"];
   var statLabels={hp:"HP",attack:"Atk",defense:"Def",specialAttack:"SpA",specialDefense:"SpD",speed:"Spe"};
   var gameConfig={
@@ -22,6 +23,7 @@
   };
   var pokemonList=[];
   var resourceLists={ability:null,item:null,nature:null,move:null};
+  var moveMetaCache=null;
   var toastTimer=null;
 
   function $(s,root){return (root||document).querySelector(s)}
@@ -52,7 +54,7 @@
   }
   function emptyStats(){return {hp:"",attack:"",defense:"",specialAttack:"",specialDefense:"",speed:""}}
   function blankMon(){
-    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",gender:"",level:50,alignment:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),moves:["","","",""]};
+    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",gender:"",level:50,alignment:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""]};
   }
   function showToast(message){
     var el=$("#toast");el.textContent=message;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.classList.remove("show")},2200);
@@ -545,7 +547,13 @@
       mon.stats[key]=$('[data-final-stat="'+key+'"]').value.trim();
       mon.statPoints[key]=$('[data-point-stat="'+key+'"]').value.trim();
     });
-    mon.moves=$$(".move-input").map(function(input){return input.value.trim()});
+    mon.moves=$(".move-input").map(function(input){return input.value.trim()});
+    mon.moveTypes=mon.moves.map(function(move,index){
+      return existing.moves&&existing.moves[index]===move&&existing.moveTypes?existing.moveTypes[index]||"":"";
+    });
+    mon.moveClasses=mon.moves.map(function(move,index){
+      return existing.moves&&existing.moves[index]===move&&existing.moveClasses?existing.moveClasses[index]||"":"";
+    });
     return mon;
   }
 
@@ -572,6 +580,93 @@
   }
   function populateMeta(){
     ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(key){$("#"+key).value=state.meta[key]||""});
+  }
+
+  function moveSlug(name){
+    return String(name||"").trim().toLowerCase().replace(/[’']/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+  }
+
+  function loadMoveMetaCache(){
+    if(moveMetaCache)return moveMetaCache;
+    try{moveMetaCache=JSON.parse(localStorage.getItem(MOVE_META_CACHE_KEY)||"{}")}catch(e){moveMetaCache={}}
+    return moveMetaCache;
+  }
+
+  function saveMoveMetaCache(){
+    try{localStorage.setItem(MOVE_META_CACHE_KEY,JSON.stringify(moveMetaCache||{}))}catch(e){}
+  }
+
+  async function getMoveMeta(name){
+    var slug=moveSlug(name);
+    if(!slug)return {type:"",damageClass:""};
+    var cache=loadMoveMetaCache();
+    if(cache[slug])return cache[slug];
+    try{
+      var res=await fetch(API+"/move/"+encodeURIComponent(slug));
+      if(!res.ok)throw new Error("Move lookup failed");
+      var data=await res.json();
+      cache[slug]={
+        type:prettyName(data.type&&data.type.name||""),
+        damageClass:prettyName(data.damage_class&&data.damage_class.name||"")
+      };
+      saveMoveMetaCache();
+      return cache[slug];
+    }catch(e){
+      cache[slug]={type:"",damageClass:""};
+      saveMoveMetaCache();
+      return cache[slug];
+    }
+  }
+
+  async function hydrateMoveMeta(mons){
+    var changed=false;
+    await Promise.all((mons||[]).map(async function(mon){
+      mon.moveTypes=Array.isArray(mon.moveTypes)?mon.moveTypes.slice(0,4):["","","",""];
+      mon.moveClasses=Array.isArray(mon.moveClasses)?mon.moveClasses.slice(0,4):["","","",""];
+      while(mon.moveTypes.length<4)mon.moveTypes.push("");
+      while(mon.moveClasses.length<4)mon.moveClasses.push("");
+      await Promise.all((mon.moves||[]).slice(0,4).map(async function(move,index){
+        if(!move){return}
+        if(mon.moveTypes[index]&&mon.moveClasses[index])return;
+        var meta=await getMoveMeta(move);
+        if(meta.type&&mon.moveTypes[index]!==meta.type){mon.moveTypes[index]=meta.type;changed=true}
+        if(meta.damageClass&&mon.moveClasses[index]!==meta.damageClass){mon.moveClasses[index]=meta.damageClass;changed=true}
+      }));
+    }));
+    if(changed)saveState(true);
+    return changed;
+  }
+
+  function moveTypeKey(type){
+    return String(type||"").toLowerCase().replace(/[^a-z]/g,"")||"unknown";
+  }
+
+  function moveTypeMark(type){
+    var marks={
+      normal:"N",fire:"F",water:"W",electric:"E",grass:"G",ice:"I",
+      fighting:"FT",poison:"P",ground:"GD",flying:"FL",psychic:"PS",
+      bug:"B",rock:"R",ghost:"GH",dragon:"DR",dark:"DK",steel:"ST",fairy:"FA"
+    };
+    return marks[moveTypeKey(type)]||"•";
+  }
+
+  function moveTile(move,type,damageClass,printMode){
+    var cls=printMode?"print-move":"paper-move";
+    var key=moveTypeKey(type);
+    var label=move||"—";
+    var typeText=type||"Move";
+    return '<div class="'+cls+' move-type-'+key+'" title="'+escapeHtml(typeText+(damageClass?" · "+damageClass:""))+'">'+
+      '<span class="'+cls+'-name">'+escapeHtml(label)+'</span>'+
+      (damageClass?'<small>'+escapeHtml(damageClass)+'</small>':'')+
+      '<span class="move-type-badge" aria-label="'+escapeHtml(typeText)+'">'+escapeHtml(moveTypeMark(type))+'</span>'+
+    '</div>';
+  }
+
+  function monTypePills(mon,printMode){
+    var cls=printMode?"print-mon-types":"paper-mon-types";
+    return '<div class="'+cls+'">'+(mon.types||[]).map(function(type){
+      return '<span class="mon-type type-'+moveTypeKey(type)+'">'+escapeHtml(type)+'</span>';
+    }).join("")+'</div>';
   }
 
   function monExtra(mon,mode){
@@ -604,31 +699,89 @@
     }).join("");
   }
 
-  function renderPreview(){
-    syncMeta();
+  function renderPreview(skipHydrate){
+    syncMeta(false);
     var mode=state.sheetMode;
     $("[data-sheet-mode='full']").classList.toggle("is-selected",mode==="full");
     $("[data-sheet-mode='open']").classList.toggle("is-selected",mode==="open");
     var completed=state.team.filter(function(m){return m&&m.name});
+
     var teamHtml=completed.map(function(mon){
       var extras=monExtra(mon,mode).map(function(x){return "<span>"+escapeHtml(x)+"</span>"}).join("");
-      var moves=(mon.moves||[]).filter(Boolean).map(function(m){return "<div>"+escapeHtml(m)+"</div>"}).join("");
-      return '<article class="paper-mon"><div class="paper-mon-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div><div class="paper-mon-body"><div class="paper-mon-top"><div><div class="paper-mon-name">'+escapeHtml(displayMonName(mon))+'</div><div class="paper-mon-sub">'+escapeHtml(mon.ability||"No ability")+' · '+escapeHtml(mon.item||"No item")+'</div></div></div><div class="paper-moves">'+moves+'</div><div class="paper-extra">'+extras+'</div>'+(mode==="full"?'<div class="paper-stats">'+statHtml(mon,true)+'</div>':'')+'</div></article>';
+      var moves=(mon.moves||[]).filter(Boolean).map(function(move,index){
+        return moveTile(move,(mon.moveTypes||[])[index],(mon.moveClasses||[])[index],false);
+      }).join("");
+      if(!moves)moves='<div class="paper-move move-type-unknown"><span class="paper-move-name">No moves entered</span><span class="move-type-badge">•</span></div>';
+
+      return '<article class="paper-mon">'+
+        '<div class="paper-mon-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
+        '<div class="paper-mon-body">'+
+          '<div class="paper-mon-top">'+
+            '<div><div class="paper-mon-name">'+escapeHtml(displayMonName(mon))+'</div>'+monTypePills(mon,false)+'</div>'+
+            '<span class="paper-level">Lv. '+escapeHtml(mon.level||50)+'</span>'+
+          '</div>'+
+          '<div class="paper-details">'+
+            '<div><small>Ability</small><strong>'+escapeHtml(mon.ability||"—")+'</strong></div>'+
+            '<div><small>Held Item</small><strong>'+escapeHtml(mon.item||"—")+'</strong></div>'+
+          '</div>'+
+          '<div class="paper-moves">'+moves+'</div>'+
+          '<div class="paper-extra">'+extras+'</div>'+
+          (mode==="full"?'<div class="paper-stats">'+statHtml(mon,true)+'</div>':'')+
+        '</div>'+
+      '</article>';
     }).join("");
+
     if(!teamHtml)teamHtml='<p style="color:#777;font-size:12px">Add Pokémon to your team to see the generated sheet.</p>';
-    $("#screenPreview").innerHTML='<header class="paper-header"><div class="paper-brand"><h2>VGC Team List</h2><p>'+escapeHtml(gameConfig[state.game].name)+' · '+(mode==="full"?"Full / registration":"Open team sheet")+'</p></div><div class="paper-meta"><strong>'+escapeHtml(state.meta.playerName||"Player")+'</strong>'+escapeHtml(state.meta.trainerName||"Trainer name")+(state.meta.playerId?'<br>Player ID: '+escapeHtml(state.meta.playerId):'')+(state.meta.yearOfBirth?'<br>Year of birth: '+escapeHtml(state.meta.yearOfBirth):'')+'</div></header><div class="paper-team">'+teamHtml+'</div>';
+
+    $("#screenPreview").innerHTML=
+      '<header class="paper-header">'+
+        '<div class="paper-brand"><span>TEAM LIST</span><h2>VGC Team List</h2><p>'+escapeHtml(gameConfig[state.game].name)+' · '+(mode==="full"?"Full / registration":"Open team sheet")+'</p></div>'+
+        '<div class="paper-meta"><strong>'+escapeHtml(state.meta.playerName||"Player")+'</strong>'+escapeHtml(state.meta.trainerName||"Trainer name")+(state.meta.playerId?'<br>Player ID: '+escapeHtml(state.meta.playerId):'')+(state.meta.yearOfBirth?'<br>Year of birth: '+escapeHtml(state.meta.yearOfBirth):'')+'</div>'+
+      '</header>'+
+      '<div class="paper-team">'+teamHtml+'</div>';
+
     renderPrint();
+
+    if(!skipHydrate&&completed.length){
+      hydrateMoveMeta(completed).then(function(changed){
+        if(changed&&$("#previewView").classList.contains("is-active"))renderPreview(true);
+      });
+    }
   }
 
   function renderPrint(){
     var mode=state.sheetMode;
     var completed=state.team.filter(function(m){return m&&m.name});
     var mons=completed.map(function(mon){
-      var moves=(mon.moves||[]).map(function(m){return '<div class="print-move">'+escapeHtml(m||"—")+'</div>'}).join("");
-      var extras=monExtra(mon,mode).join(" · ");
-      return '<article class="print-mon"><div class="print-mon-head"><div class="print-mon-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div><div class="print-mon-title"><h2>'+escapeHtml(displayMonName(mon))+'</h2><p>'+escapeHtml(extras)+'</p></div></div><div class="print-mon-body"><div class="print-row"><b>Ability</b><span>'+escapeHtml(mon.ability||"—")+'</span></div><div class="print-row"><b>Held Item</b><span>'+escapeHtml(mon.item||"—")+'</span></div><div class="print-moves">'+moves+'</div>'+(mode==="full"?'<div class="print-stats">'+printStatHtml(mon,true)+'</div>':'')+'</div></article>';
+      var moves=(mon.moves||[]).map(function(move,index){
+        return moveTile(move||"—",(mon.moveTypes||[])[index],(mon.moveClasses||[])[index],true);
+      }).join("");
+      var extraBits=monExtra(mon,mode).filter(function(bit){return bit.indexOf("Lv. ")!==0});
+      return '<article class="print-mon">'+
+        '<div class="print-mon-head">'+
+          '<div class="print-mon-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
+          '<div class="print-mon-title">'+
+            '<div class="print-title-line"><h2>'+escapeHtml(displayMonName(mon))+'</h2><span>Lv. '+escapeHtml(mon.level||50)+'</span></div>'+
+            monTypePills(mon,true)+
+            (extraBits.length?'<p>'+escapeHtml(extraBits.join(" · "))+'</p>':'')+
+          '</div>'+
+        '</div>'+
+        '<div class="print-mon-body">'+
+          '<div class="print-row"><b>Ability</b><span>'+escapeHtml(mon.ability||"—")+'</span></div>'+
+          '<div class="print-row"><b>Held Item</b><span>'+escapeHtml(mon.item||"—")+'</span></div>'+
+          '<div class="print-moves">'+moves+'</div>'+
+          (mode==="full"?'<div class="print-stats">'+printStatHtml(mon,true)+'</div>':'')+
+        '</div>'+
+      '</article>';
     }).join("");
-    $("#printRoot").innerHTML='<section class="print-sheet"><header class="print-head"><div><h1>VGC Team List</h1><p>'+escapeHtml(gameConfig[state.game].name)+' · '+(mode==="full"?"Full / registration copy":"Open team sheet")+'</p></div><div class="print-meta"><strong>'+escapeHtml(state.meta.playerName||"Player")+'</strong>Trainer: '+escapeHtml(state.meta.trainerName||"—")+(state.meta.playerId?'<br>Player ID: '+escapeHtml(state.meta.playerId):'')+(state.meta.yearOfBirth?'<br>Year of birth: '+escapeHtml(state.meta.yearOfBirth):'')+'</div></header><div class="print-team">'+mons+'</div><div class="print-foot">Generated with VGC Team Lists · Verify all information against the game before tournament submission.</div></section>';
+
+    $("#printRoot").innerHTML=
+      '<section class="print-sheet">'+
+        '<header class="print-head"><div><span>TEAM LIST</span><h1>VGC Team List</h1><p>'+escapeHtml(gameConfig[state.game].name)+' · '+(mode==="full"?"Full / registration copy":"Open team sheet")+'</p></div>'+
+        '<div class="print-meta"><strong>'+escapeHtml(state.meta.playerName||"Player")+'</strong>Trainer: '+escapeHtml(state.meta.trainerName||"—")+(state.meta.playerId?'<br>Player ID: '+escapeHtml(state.meta.playerId):'')+(state.meta.yearOfBirth?'<br>Year of birth: '+escapeHtml(state.meta.yearOfBirth):'')+'</div></header>'+
+        '<div class="print-team">'+mons+'</div>'+
+        '<div class="print-foot">Generated with VGC Team Lists · Verify all information against the game before tournament submission.</div>'+
+      '</section>';
   }
 
   function shareTeam(){
