@@ -15,7 +15,7 @@
 
   var state={
     game:"champions",sheetMode:"full",editingIndex:null,
-    meta:{playerName:"",trainerName:"",eventName:"",teamName:""},
+    meta:{playerName:"",trainerName:"",playerId:"",yearOfBirth:""},
     team:[null,null,null,null,null,null]
   };
   var pokemonList=[];
@@ -415,11 +415,11 @@
   }
 
   function syncMeta(){
-    ["playerName","trainerName","eventName","teamName"].forEach(function(key){state.meta[key]=$("#"+key).value.trim()});
+    ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(key){state.meta[key]=$("#"+key).value.trim()});
     saveState(true);
   }
   function populateMeta(){
-    ["playerName","trainerName","eventName","teamName"].forEach(function(key){$("#"+key).value=state.meta[key]||""});
+    ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(key){$("#"+key).value=state.meta[key]||""});
   }
 
   function monExtra(mon,mode){
@@ -464,7 +464,7 @@
       return '<article class="paper-mon"><div class="paper-mon-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div><div class="paper-mon-body"><div class="paper-mon-top"><div><div class="paper-mon-name">'+escapeHtml(displayMonName(mon))+'</div><div class="paper-mon-sub">'+escapeHtml(mon.ability||"No ability")+' · '+escapeHtml(mon.item||"No item")+'</div></div></div><div class="paper-moves">'+moves+'</div><div class="paper-extra">'+extras+'</div>'+(mode==="full"?'<div class="paper-stats">'+statHtml(mon,true)+'</div>':'')+'</div></article>';
     }).join("");
     if(!teamHtml)teamHtml='<p style="color:#777;font-size:12px">Add Pokémon to your team to see the generated sheet.</p>';
-    $("#screenPreview").innerHTML='<header class="paper-header"><div class="paper-brand"><h2>VGC Team List</h2><p>'+escapeHtml(gameConfig[state.game].name)+' · '+(mode==="full"?"Full / registration":"Open team sheet")+'</p></div><div class="paper-meta"><strong>'+escapeHtml(state.meta.playerName||"Player")+'</strong>'+escapeHtml(state.meta.trainerName||"Trainer name")+'<br>'+escapeHtml(state.meta.eventName||"Event")+'</div></header><div class="paper-team">'+teamHtml+'</div>';
+    $("#screenPreview").innerHTML='<header class="paper-header"><div class="paper-brand"><h2>VGC Team List</h2><p>'+escapeHtml(gameConfig[state.game].name)+' · '+(mode==="full"?"Full / registration":"Open team sheet")+'</p></div><div class="paper-meta"><strong>'+escapeHtml(state.meta.playerName||"Player")+'</strong>'+escapeHtml(state.meta.trainerName||"Trainer name")+(state.meta.playerId?'<br>Player ID: '+escapeHtml(state.meta.playerId):'')+(state.meta.yearOfBirth?'<br>Year of birth: '+escapeHtml(state.meta.yearOfBirth):'')+'</div></header><div class="paper-team">'+teamHtml+'</div>';
     renderPrint();
   }
 
@@ -476,13 +476,13 @@
       var extras=monExtra(mon,mode).join(" · ");
       return '<article class="print-mon"><div class="print-mon-head"><div class="print-mon-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div><div class="print-mon-title"><h2>'+escapeHtml(displayMonName(mon))+'</h2><p>'+escapeHtml(extras)+'</p></div></div><div class="print-mon-body"><div class="print-row"><b>Ability</b><span>'+escapeHtml(mon.ability||"—")+'</span></div><div class="print-row"><b>Held Item</b><span>'+escapeHtml(mon.item||"—")+'</span></div><div class="print-moves">'+moves+'</div>'+(mode==="full"?'<div class="print-stats">'+printStatHtml(mon,true)+'</div>':'')+'</div></article>';
     }).join("");
-    $("#printRoot").innerHTML='<section class="print-sheet"><header class="print-head"><div><h1>VGC Team List</h1><p>'+escapeHtml(gameConfig[state.game].name)+' · '+(mode==="full"?"Full / registration copy":"Open team sheet")+'</p></div><div class="print-meta"><strong>'+escapeHtml(state.meta.playerName||"Player")+'</strong>Trainer: '+escapeHtml(state.meta.trainerName||"—")+'<br>Event: '+escapeHtml(state.meta.eventName||"—")+(state.meta.teamName?'<br>Team: '+escapeHtml(state.meta.teamName):'')+'</div></header><div class="print-team">'+mons+'</div><div class="print-foot">Generated with VGC Team Lists · Verify all information against the game before tournament submission.</div></section>';
+    $("#printRoot").innerHTML='<section class="print-sheet"><header class="print-head"><div><h1>VGC Team List</h1><p>'+escapeHtml(gameConfig[state.game].name)+' · '+(mode==="full"?"Full / registration copy":"Open team sheet")+'</p></div><div class="print-meta"><strong>'+escapeHtml(state.meta.playerName||"Player")+'</strong>Trainer: '+escapeHtml(state.meta.trainerName||"—")+(state.meta.playerId?'<br>Player ID: '+escapeHtml(state.meta.playerId):'')+(state.meta.yearOfBirth?'<br>Year of birth: '+escapeHtml(state.meta.yearOfBirth):'')+'</div></header><div class="print-team">'+mons+'</div><div class="print-foot">Generated with VGC Team Lists · Verify all information against the game before tournament submission.</div></section>';
   }
 
   function shareTeam(){
     var completed=state.team.filter(function(m){return m&&m.name});
     if(!completed.length){showToast("Add at least one Pokémon before sharing");return}
-    var lines=[state.meta.teamName||"VGC Team",gameConfig[state.game].name,""];
+    var lines=["VGC Team",gameConfig[state.game].name,""];
     completed.forEach(function(mon){
       lines.push(displayMonName(mon)+" @ "+(mon.item||"No item"));
       lines.push("Ability: "+(mon.ability||"—"));
@@ -491,7 +491,7 @@
     });
     var text=lines.join("\n");
     if(navigator.share){
-      navigator.share({title:state.meta.teamName||"VGC Team List",text:text,url:location.href}).catch(function(){});
+      navigator.share({title:"VGC Team List",text:text,url:location.href}).catch(function(){});
     }else if(navigator.clipboard){
       navigator.clipboard.writeText(text).then(function(){showToast("Team copied to clipboard")});
     }else{showToast("Sharing is not available in this browser")}
@@ -507,7 +507,6 @@
     $$("[data-nav]").forEach(function(b){b.addEventListener("click",function(){navigate(b.dataset.nav)})});
     $("#teamGrid").addEventListener("click",function(e){var slot=e.target.closest(".team-slot");if(slot)openEditor(Number(slot.dataset.slot))});
     $("#closeEditorButton").addEventListener("click",closeEditor);
-    $("#editorBackdrop").addEventListener("click",function(e){if(e.target===$("#editorBackdrop"))closeEditor()});
     $("#savePokemonButton").addEventListener("click",saveEditor);
     $("#removePokemonButton").addEventListener("click",removeEditor);
     $("#pokemonSearch").addEventListener("input",function(e){searchPokemon(e.target.value)});
@@ -544,7 +543,7 @@
     });
     $("#saveLocalButton").addEventListener("click",function(){syncMeta();saveState(false)});
     $("#clearTeamButton").addEventListener("click",clearTeam);
-    ["playerName","trainerName","eventName","teamName"].forEach(function(id){$("#"+id).addEventListener("change",syncMeta)});
+    ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(id){$("#"+id).addEventListener("change",syncMeta)});
     $$("[data-sheet-mode]").forEach(function(b){b.addEventListener("click",function(){state.sheetMode=b.dataset.sheetMode;saveState(true);renderPreview()})});
     $("#printButton").addEventListener("click",function(){renderPrint();window.print()});
     $("#shareButton").addEventListener("click",shareTeam);
