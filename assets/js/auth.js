@@ -81,6 +81,75 @@
     $("#profilePlayerId").value=auth.user.playerId||"";
     $("#profileYearOfBirth").value=auth.user.yearOfBirth||"";
     $("#removeAvatarButton").hidden=auth.user.avatarMode!=="custom";
+    renderPlayQr();
+  }
+
+  function playQrExpiryDate(){
+    var now=new Date();
+    var last=new Date(now.getFullYear(),now.getMonth()+1,0);
+    return last.getFullYear()+"-"+String(last.getMonth()+1).padStart(2,"0")+"-"+String(last.getDate()).padStart(2,"0");
+  }
+
+  function playQrNameParts(fullName){
+    var parts=String(fullName||"").trim().split(/\s+/).filter(Boolean);
+    return {
+      first:parts[0]||"",
+      lastInitial:parts.length>1?(Array.from(parts[parts.length-1])[0]||"").toUpperCase():""
+    };
+  }
+
+  function utf8Base64(value){
+    var bytes=new TextEncoder().encode(value),binary="";
+    for(var i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  function drawPlayQr(canvas,text){
+    if(!window.qrcodegen||!window.qrcodegen.QrCode)return false;
+    var qr=window.qrcodegen.QrCode.encodeText(text,window.qrcodegen.QrCode.Ecc.HIGH);
+    var border=4,moduleSize=7,size=(qr.size+border*2)*moduleSize;
+    canvas.width=size;canvas.height=size;
+    var ctx=canvas.getContext("2d");
+    ctx.imageSmoothingEnabled=false;
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,size,size);
+    ctx.fillStyle="#000";
+    for(var y=0;y<qr.size;y++){
+      for(var x=0;x<qr.size;x++){
+        if(qr.getModule(x,y)){
+          ctx.fillRect((x+border)*moduleSize,(y+border)*moduleSize,moduleSize,moduleSize);
+        }
+      }
+    }
+    return true;
+  }
+
+  function renderPlayQr(){
+    var box=$("#playQrBox");if(!box)return;
+    var name=$("#profilePlayerName").value.trim();
+    var playerId=$("#profilePlayerId").value.trim();
+    var birthYear=$("#profileYearOfBirth").value.trim();
+    var names=playQrNameParts(name);
+    var expiry=playQrExpiryDate();
+
+    $("#playQrFirst").textContent=names.first||"—";
+    $("#playQrLast").textContent=names.lastInitial||"—";
+    $("#playQrPlayerId").textContent=playerId||"—";
+    $("#playQrBirthYear").textContent=birthYear||"—";
+    $("#playQrExpiry").textContent=expiry;
+
+    var ready=!!(names.first&&names.lastInitial&&playerId&&/^\d{4}$/.test(birthYear));
+    var canvas=$("#playQrCanvas"),placeholder=$("#playQrPlaceholder");
+    canvas.hidden=true;placeholder.hidden=false;
+    if(!ready)return;
+
+    var payload=JSON.stringify({pi:playerId,fn:names.first,li:names.lastInitial,by:birthYear,e:expiry});
+    var encoded=utf8Base64(payload);
+    if(drawPlayQr(canvas,encoded)){
+      canvas.hidden=false;placeholder.hidden=true;
+    }else{
+      placeholder.querySelector("strong").textContent="QR generator unavailable";
+      placeholder.querySelector("span").textContent="Refresh the page and try again.";
+    }
   }
 
   function renderAuth(){
@@ -378,6 +447,9 @@
     $("#forgotForm").addEventListener("submit",forgot);
     $("#resetForm").addEventListener("submit",resetPassword);
     $("#profileForm").addEventListener("submit",saveProfile);
+    ["#profilePlayerName","#profilePlayerId","#profileYearOfBirth"].forEach(function(selector){
+      $(selector).addEventListener("input",renderPlayQr);
+    });
 
     $("#uploadAvatarButton").addEventListener("click",function(){$("#avatarInput").click()});
     $("#avatarInput").addEventListener("change",function(e){uploadAvatar(e.target.files&&e.target.files[0])});

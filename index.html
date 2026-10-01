@@ -8,9 +8,10 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.5.4">
-  <script defer src="/assets/js/app.js?v=0.5.2"></script>
-  <script defer src="/assets/js/auth.js?v=0.3.9"></script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.5.5">
+  <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
+  <script defer src="/assets/js/app.js?v=0.5.5"></script>
+  <script defer src="/assets/js/auth.js?v=0.4.0"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -281,6 +282,39 @@
                   <div><strong>Profile saved</strong><small>Your player details will be used as defaults for new builds.</small></div>
                 </div>
                 <div class="account-message" id="profileMessage" role="status" aria-live="polite"></div>
+
+                <section class="play-qr-card" aria-labelledby="playQrTitle">
+                  <div class="play-qr-head">
+                    <div>
+                      <span class="eyebrow">Play! Pokémon ID</span>
+                      <div class="play-qr-title-row">
+                        <h2 id="playQrTitle">Player QR code</h2>
+                        <span class="experimental-badge">Experimental</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p class="play-qr-intro">Generated from your Player name, Player ID and year of birth. We’re currently testing the expiry rule against official Play! Pokémon Access codes.</p>
+                  <div class="play-qr-layout">
+                    <div class="play-qr-box" id="playQrBox">
+                      <div class="play-qr-placeholder" id="playQrPlaceholder">
+                        <strong>Add your player details above</strong>
+                        <span>We need a first and last name, Player ID and year of birth.</span>
+                      </div>
+                      <canvas id="playQrCanvas" aria-label="Experimental Play! Pokémon player QR code" hidden></canvas>
+                    </div>
+                    <div class="play-qr-details">
+                      <div><small>First name</small><strong id="playQrFirst">—</strong></div>
+                      <div><small>Last initial</small><strong id="playQrLast">—</strong></div>
+                      <div><small>Player ID</small><strong id="playQrPlayerId">—</strong></div>
+                      <div><small>Birth year</small><strong id="playQrBirthYear">—</strong></div>
+                      <div class="play-qr-expiry"><small>Assumed expiry</small><strong id="playQrExpiry">—</strong></div>
+                    </div>
+                  </div>
+                  <div class="play-qr-warning">
+                    <strong>Experimental</strong>
+                    <span>This reproduces the QR payload format we’ve decoded, but it has not yet been verified with enough official codes to rely on for tournament check-in. Keep the official Access app available as a fallback.</span>
+                  </div>
+                </section>
               </div>
             </div>
           </div>

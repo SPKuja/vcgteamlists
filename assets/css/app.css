@@ -1047,3 +1047,50 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .insight-type small{font-size:10px}
   .insight-note{font-size:11px!important}
 }
+
+/* Experimental Play! Pokémon player QR */
+.play-qr-card{
+  margin-top:24px;
+  padding:20px;
+  border:1px solid rgba(var(--accent-rgb),.16);
+  border-radius:22px;
+  background:linear-gradient(145deg,#fff,rgba(var(--accent-rgb),.035));
+}
+.play-qr-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.play-qr-title-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.play-qr-title-row h2{margin:0;font-size:21px;letter-spacing:-.035em}
+.experimental-badge{
+  display:inline-flex;align-items:center;min-height:24px;padding:0 8px;border-radius:999px;
+  background:#fff1d7;color:#8a5a00;border:1px solid #f1d49b;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.06em
+}
+.play-qr-intro{margin:8px 0 17px;color:var(--muted);font-size:11px;line-height:1.55;max-width:650px}
+.play-qr-layout{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:18px;align-items:center}
+.play-qr-box{
+  aspect-ratio:1;border-radius:18px;border:1px solid #dedfe7;background:#fff;padding:13px;
+  display:grid;place-items:center;box-shadow:inset 0 0 0 5px #fafafe
+}
+.play-qr-box canvas{display:block;width:100%;height:auto;image-rendering:pixelated}
+.play-qr-placeholder{text-align:center;color:var(--muted);padding:25px}
+.play-qr-placeholder strong{display:block;color:var(--text);font-size:13px}
+.play-qr-placeholder span{display:block;margin-top:5px;font-size:10px;line-height:1.45}
+.play-qr-details{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.play-qr-details>div{
+  min-width:0;padding:11px 12px;border:1px solid #e8e9ef;border-radius:13px;background:rgba(255,255,255,.8)
+}
+.play-qr-details small{
+  display:block;margin-bottom:3px;color:#9294a0;font-size:8px;font-weight:850;text-transform:uppercase;letter-spacing:.05em
+}
+.play-qr-details strong{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.play-qr-expiry{grid-column:1/-1}
+.play-qr-warning{
+  display:flex;gap:8px;align-items:flex-start;margin-top:15px;padding:11px 12px;border-radius:13px;
+  background:#fff7e8;border:1px solid #f1ddb6;color:#725521;font-size:10px;line-height:1.5
+}
+.play-qr-warning strong{flex:0 0 auto}
+@media(max-width:700px){
+  .play-qr-card{padding:16px}
+  .play-qr-layout{grid-template-columns:1fr}
+  .play-qr-box{width:min(100%,330px);margin:0 auto}
+  .play-qr-details strong{font-size:14px}
+  .play-qr-intro,.play-qr-warning{font-size:11px}
+}
