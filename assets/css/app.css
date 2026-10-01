@@ -200,3 +200,13 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
 @media(max-width:520px){
   .beta-pill{display:none}.account-button{padding-right:8px}.account-button #accountLabel{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
+
+.registration-success{padding:18px 4px 6px;text-align:center;max-width:430px;margin:0 auto}
+.registration-success-icon{width:70px;height:70px;border-radius:24px;margin:2px auto 18px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;font-size:34px;font-weight:900;box-shadow:0 16px 36px rgba(var(--accent-rgb),.22)}
+.registration-success .eyebrow{margin-bottom:6px}
+.registration-success h3{font-size:28px;letter-spacing:-.04em;margin:0 0 10px}
+.registration-success p{margin:0;color:var(--muted);font-size:13px;line-height:1.55}
+.registration-success p strong{color:var(--text)}
+.registration-success-note{margin-top:8px!important}
+.registration-success .button{width:100%;margin-top:22px}
+.registration-success .account-link{display:block;margin:14px auto 0;text-align:center}

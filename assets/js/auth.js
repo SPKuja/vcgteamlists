@@ -62,8 +62,9 @@
     ["login","register","forgot","reset"].forEach(function(p){
       var form=$("#"+p+"Form");if(form)form.hidden=p!==name;
     });
-    $$(".account-tabs [data-auth-pane]").forEach(function(btn){btn.classList.toggle("is-selected",btn.dataset.authPane===name)});
-    $(".account-tabs").hidden=name==="forgot"||name==="reset";
+    $("#registeredPane").hidden=name!=="registered";
+    $(".account-tabs [data-auth-pane]").forEach(function(btn){btn.classList.toggle("is-selected",btn.dataset.authPane===name)});
+    $(".account-tabs").hidden=name==="forgot"||name==="reset"||name==="registered";
     $("#resendVerificationButton").hidden=true;
     message("#authMessage","");
   }
@@ -204,8 +205,12 @@
       var data=await api("register.php",{method:"POST",body:{
         email:$("#registerEmail").value.trim(),password:password
       }});
-      message("#authMessage",data.message||"Check your email.");
-      $("#loginEmail").value=$("#registerEmail").value.trim();
+      var email=$("#registerEmail").value.trim();
+      $("#loginEmail").value=email;
+      $("#registeredEmail").textContent=email;
+      $("#registerPassword").value="";
+      $("#registerPasswordConfirm").value="";
+      setPane("registered");
     }catch(err){message("#authMessage",err.message,true)}
   }
 
@@ -314,6 +319,7 @@
     $$("[data-auth-pane]").forEach(function(btn){btn.addEventListener("click",function(){setPane(btn.dataset.authPane)})});
     $("#forgotPasswordButton").addEventListener("click",function(){setPane("forgot");$("#forgotEmail").value=$("#loginEmail").value.trim()});
     $("#resendVerificationButton").addEventListener("click",resendVerification);
+    $("#registeredResendButton").addEventListener("click",resendVerification);
 
     $("#loginForm").addEventListener("submit",login);
     $("#registerForm").addEventListener("submit",register);

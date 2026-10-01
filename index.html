@@ -8,9 +8,9 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.2.1">
-  <script defer src="/assets/js/app.js?v=0.2.1"></script>
-  <script defer src="/assets/js/auth.js?v=0.2.1"></script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.2.2">
+  <script defer src="/assets/js/app.js?v=0.2.2"></script>
+  <script defer src="/assets/js/auth.js?v=0.2.2"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -298,6 +298,16 @@
             <label><span>Confirm password</span><input id="registerPasswordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
             <button class="button primary" type="submit">Create account</button>
           </form>
+
+          <section class="registration-success" id="registeredPane" hidden>
+            <div class="registration-success-icon" aria-hidden="true">✓</div>
+            <span class="eyebrow">Account created</span>
+            <h3>Check your email</h3>
+            <p>We’ve sent a verification link to <strong id="registeredEmail"></strong>.</p>
+            <p class="registration-success-note">Open the link in that email to activate your account, then come back here to sign in.</p>
+            <button class="button primary" type="button" data-auth-pane="login">Go to sign in</button>
+            <button class="text-button account-link" id="registeredResendButton" type="button">Resend verification email</button>
+          </section>
 
           <form class="account-form" id="forgotForm" hidden>
             <label><span>Email</span><input id="forgotEmail" type="email" autocomplete="email" required></label>
