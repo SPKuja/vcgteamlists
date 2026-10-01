@@ -13,7 +13,7 @@
   var statLabels={hp:"HP",attack:"Atk",defense:"Def",specialAttack:"SpA",specialDefense:"SpD",speed:"Spe"};
   var gameConfig={
     champions:{name:"Pokémon Champions",subtitle:"Stat Alignment, Stat Points and final battle stats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",alignmentLabel:"Stat Alignment",statPoints:true,tera:false,gmax:false,showLevel:false},
-    sv:{name:"Scarlet / Violet",subtitle:"Tera Type, nature/alignment, level and final stats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1008.png",alignmentLabel:"Nature / Alignment",statPoints:false,tera:true,gmax:false,showLevel:true},
+    sv:{name:"Scarlet / Violet",subtitle:"Tera Type, nature/alignment, level and final stats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1008.png",alignmentLabel:"Nature",statPoints:false,tera:true,gmax:false,showLevel:true},
     swsh:{name:"Sword / Shield",subtitle:"Nature, level, final stats and Gigantamax capability.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/888.png",alignmentLabel:"Nature",statPoints:false,tera:false,gmax:true,showLevel:true},
     custom:{name:"Custom / Other",subtitle:"A flexible team sheet for custom or legacy formats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png",alignmentLabel:"Nature / Alignment",statPoints:false,tera:false,gmax:false,showLevel:true}
   };
@@ -274,7 +274,8 @@
 
   function renderGameFields(mon){
     var config=gameConfig[state.game],wrap=$("#gameSpecificFields");
-    var html='<div class="form-grid two" style="margin-top:10px"><div class="autocomplete-field" data-resource="nature"><label for="alignmentInput">'+escapeHtml(config.alignmentLabel)+'</label><div class="autocomplete-control"><input id="alignmentInput" autocomplete="off" placeholder="Search alignments"><button type="button" class="field-caret" data-open-suggestions="alignmentInput" aria-label="Show alignments">⌄</button></div><div class="field-results" data-results-for="alignmentInput" hidden></div></div>';
+    var alignmentPlaceholder=state.game==="champions"?"Search stat alignments":"Search natures";
+    var html='<div class="form-grid two" style="margin-top:10px"><div class="autocomplete-field" data-resource="nature"><label for="alignmentInput">'+escapeHtml(config.alignmentLabel)+'</label><div class="autocomplete-control"><input id="alignmentInput" autocomplete="off" placeholder="'+escapeHtml(alignmentPlaceholder)+'"><button type="button" class="field-caret" data-open-suggestions="alignmentInput" aria-label="Show alignments">⌄</button></div><div class="field-results" data-results-for="alignmentInput" hidden></div></div>';
     if(config.tera)html+='<label><span>Tera Type</span><input id="teraInput" placeholder="e.g. Grass"></label>';
     html+='</div>';
     if(config.gmax)html+='<label class="inline-toggle"><div><strong>Gigantamax capable</strong></div><input id="gmaxInput" type="checkbox"></label>';
