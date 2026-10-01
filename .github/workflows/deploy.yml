@@ -1,0 +1,51 @@
+name: Deploy to DreamHost
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dreamhost-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate site
+        run: |
+          test -f index.html
+          test -f manifest.webmanifest
+          test -f assets/js/app.js
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DREAMHOST_SSH_KEY }}
+          DREAMHOST_HOST: ${{ vars.DREAMHOST_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/vcgteamlists_deploy
+          chmod 600 ~/.ssh/vcgteamlists_deploy
+          ssh-keyscan -H "$DREAMHOST_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy static site
+        env:
+          DREAMHOST_HOST: ${{ vars.DREAMHOST_HOST }}
+          DREAMHOST_USER: ${{ vars.DREAMHOST_USER }}
+          DREAMHOST_PATH: ${{ vars.DREAMHOST_PATH }}
+        run: |
+          rsync -az --delete \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='README.md' \
+            --exclude='.well-known/' \
+            --exclude='.htaccess' \
+            -e "ssh -i ~/.ssh/vcgteamlists_deploy" \
+            ./ "$DREAMHOST_USER@$DREAMHOST_HOST:$DREAMHOST_PATH/"
