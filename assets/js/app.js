@@ -2,7 +2,9 @@
   "use strict";
 
   var API="https://pokeapi.co/api/v2";
-  var STORAGE_KEY="vcg-teamlists-v1";
+  var STORAGE_KEY="vcg-teamlists-v2";
+  var LEGACY_STORAGE_KEY="vcg-teamlists-v1";
+  var LOCAL_SAVE_KEY="vcg-saved-build-v1";
   var LIST_CACHE_KEY="vcg-pokemon-species-list-v2";
   var statKeys=["hp","attack","defense","specialAttack","specialDefense","speed"];
   var statLabels={hp:"HP",attack:"Atk",defense:"Def",specialAttack:"SpA",specialDefense:"SpD",speed:"Spe"};
@@ -14,7 +16,7 @@
   };
 
   var state={
-    game:"champions",sheetMode:"full",editingIndex:null,
+    game:null,sheetMode:"full",editingIndex:null,activeBuild:false,dirty:false,
     meta:{playerName:"",trainerName:"",playerId:"",yearOfBirth:""},
     team:[null,null,null,null,null,null]
   };
@@ -57,30 +59,139 @@
   }
   function saveState(silent){
     localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
-    if(!silent)showToast("Saved on this device");
+    if(!silent)showToast("Draft saved on this device");
   }
+
   function loadState(){
     try{
       var raw=localStorage.getItem(STORAGE_KEY);
-      if(!raw)return;
+      if(!raw){
+        var legacy=localStorage.getItem(LEGACY_STORAGE_KEY);
+        if(legacy){
+          var old=JSON.parse(legacy);
+          if(old&&old.meta)state.meta=Object.assign(state.meta,old.meta);
+        }
+        return;
+      }
       var saved=JSON.parse(raw);
-      if(saved&&saved.team&&Array.isArray(saved.team)){
-        state.game=saved.game||"champions";
+      if(saved&&saved.meta)state.meta=Object.assign(state.meta,saved.meta||{});
+      if(saved&&saved.activeBuild===true&&saved.game&&gameConfig[saved.game]&&Array.isArray(saved.team)){
+        state.game=saved.game;
         state.sheetMode=saved.sheetMode||"full";
-        state.meta=Object.assign(state.meta,saved.meta||{});
+        state.activeBuild=true;
+        state.dirty=!!saved.dirty;
         state.team=saved.team.slice(0,6);
         while(state.team.length<6)state.team.push(null);
       }
     }catch(err){console.warn("Could not restore team",err)}
   }
 
-  function selectGame(game){
-    if(!gameConfig[game])return;
+  function blankTeam(){return [null,null,null,null,null,null]}
+
+  function markDirty(){
+    if(!state.activeBuild)return;
+    state.dirty=true;
+    saveState(true);
+    document.dispatchEvent(new CustomEvent("vcg:builddirty"));
+  }
+
+  function markSaved(){
+    if(!state.activeBuild)return;
+    state.dirty=false;
+    saveState(true);
+    document.dispatchEvent(new CustomEvent("vcg:buildsaved"));
+  }
+
+  function localSavedBuild(){
+    try{
+      var raw=localStorage.getItem(LOCAL_SAVE_KEY);
+      if(!raw)return null;
+      var saved=JSON.parse(raw);
+      return saved&&saved.game&&Array.isArray(saved.team)?saved:null;
+    }catch(e){return null}
+  }
+
+  function saveLocalBuild(){
+    if(!state.activeBuild){showToast("Choose a game first");return}
+    syncMeta(false);
+    var payload={
+      game:state.game,
+      sheetMode:state.sheetMode,
+      meta:JSON.parse(JSON.stringify(state.meta)),
+      team:JSON.parse(JSON.stringify(state.team))
+    };
+    localStorage.setItem(LOCAL_SAVE_KEY,JSON.stringify(payload));
+    markSaved();
+    showToast("Team saved on this device");
+  }
+
+  function resetBuild(){
+    state.game=null;
+    state.sheetMode="full";
+    state.editingIndex=null;
+    state.activeBuild=false;
+    state.dirty=false;
+    state.team=blankTeam();
+    saveState(true);
+    renderTeam();
+    document.dispatchEvent(new CustomEvent("vcg:buildreset"));
+  }
+
+  function confirmDiscard(){
+    if(!state.activeBuild)return true;
+    if(state.dirty){
+      return confirm("This team has unsaved changes. Leave the builder and clear them?");
+    }
+    return true;
+  }
+
+  function leaveBuild(){
+    if(!state.activeBuild)return true;
+    if(!confirmDiscard())return false;
+    resetBuild();
+    return true;
+  }
+
+  function startNewBuild(game){
     state.game=game;
+    state.sheetMode="full";
+    state.editingIndex=null;
+    state.activeBuild=true;
+    state.dirty=false;
+    state.team=blankTeam();
     document.body.dataset.game=game;
     $("#builderTitle").textContent=gameConfig[game].name;
     $("#builderGameArt").style.backgroundImage="url('"+gameConfig[game].art+"')";
-    saveState(true);renderTeam();navigate("team");
+    populateMeta();
+    saveState(true);
+    renderTeam();
+  }
+
+  function selectGame(game){
+    if(!gameConfig[game])return;
+    if(state.activeBuild&&!leaveBuild())return;
+
+    var saved=localSavedBuild();
+    if(saved&&saved.game===game){
+      var resume=confirm("You have a saved "+gameConfig[game].name+" team on this device. Resume it?\n\nChoose Cancel to start a new team.");
+      if(resume){
+        state.game=game;
+        state.sheetMode=saved.sheetMode==="open"?"open":"full";
+        state.activeBuild=true;
+        state.dirty=false;
+        state.meta=Object.assign(state.meta,saved.meta||{});
+        state.team=saved.team.slice(0,6);
+        while(state.team.length<6)state.team.push(null);
+        document.body.dataset.game=game;
+        $("#builderTitle").textContent=gameConfig[game].name;
+        $("#builderGameArt").style.backgroundImage="url('"+gameConfig[game].art+"')";
+        populateMeta();renderTeam();saveState(true);navigate("team");
+        return;
+      }
+    }
+
+    startNewBuild(game);
+    navigate("team");
   }
 
   var routePaths={home:"/",team:"/team-builder",teams:"/my-teams",preview:"/preview",profile:"/profile"};
@@ -96,12 +207,25 @@
 
   function navigate(target,options){
     options=options||{};
-    if(target==="team"&&!state.game)target="home";
+    var current=$(".view.is-active");
+    var currentTarget=current&&current.id==="builderView"?"team":current&&current.id==="previewView"?"preview":current&&current.id==="teamsView"?"teams":current&&current.id==="profileView"?"profile":"home";
+    var leavingBuild=(currentTarget==="team"||currentTarget==="preview")&&(target!=="team"&&target!=="preview");
+
+    if(leavingBuild&&!options.skipBuildGuard){
+      if(!leaveBuild())return false;
+    }
+
+    if((target==="team"||target==="preview")&&!state.activeBuild){
+      target="home";
+      if(!options.silent)showToast("Choose a game before opening the team builder");
+    }
+
     $$(".view").forEach(function(v){v.classList.remove("is-active")});
     var id=target==="home"?"homeView":target==="preview"?"previewView":target==="teams"?"teamsView":target==="profile"?"profileView":"builderView";
     $("#"+id).classList.add("is-active");
     $$(".bottom-nav button").forEach(function(b){b.classList.toggle("is-active",b.dataset.nav===target)});
     if(target==="preview")renderPreview();
+
     if(!options.skipHistory){
       var next=routePaths[target]||"/";
       if(location.pathname!==next){
@@ -109,8 +233,10 @@
         else history.pushState({target:target},"",next);
       }
     }
+
     document.dispatchEvent(new CustomEvent("vcg:navigate",{detail:{target:target}}));
     if(!options.noScroll)window.scrollTo({top:0,behavior:options.instant?"auto":"smooth"});
+    return true;
   }
 
   function renderTeam(){
@@ -426,17 +552,23 @@
   function saveEditor(){
     var mon=collectEditor();
     if(!mon.name){showToast("Choose or enter a Pokémon first");return}
-    state.team[state.editingIndex]=mon;saveState(true);renderTeam();closeEditor();showToast(mon.name+" saved");
+    state.team[state.editingIndex]=mon;markDirty();renderTeam();closeEditor();showToast(mon.name+" saved");
   }
 
   function removeEditor(){
     if(state.editingIndex==null)return;
-    state.team[state.editingIndex]=null;saveState(true);renderTeam();closeEditor();showToast("Pokémon removed");
+    state.team[state.editingIndex]=null;markDirty();renderTeam();closeEditor();showToast("Pokémon removed");
   }
 
-  function syncMeta(){
-    ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(key){state.meta[key]=$("#"+key).value.trim()});
-    saveState(true);
+  function syncMeta(trackDirty){
+    var changed=false;
+    ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(key){
+      var next=$("#"+key).value.trim();
+      if(state.meta[key]!==next)changed=true;
+      state.meta[key]=next;
+    });
+    if(changed&&trackDirty!==false)markDirty();
+    else saveState(true);
   }
   function populateMeta(){
     ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(key){$("#"+key).value=state.meta[key]||""});
@@ -519,7 +651,7 @@
 
   function clearTeam(){
     if(!confirm("Clear all six Pokémon from this team?"))return;
-    state.team=[null,null,null,null,null,null];saveState(true);renderTeam();showToast("Team cleared");
+    state.team=blankTeam();markDirty();renderTeam();showToast("Team cleared");
   }
 
   function wireEvents(){
@@ -561,18 +693,21 @@
       }
       if(!e.target.closest(".autocomplete-field"))closeFieldResults();
     });
-    $("#saveLocalButton").addEventListener("click",function(){syncMeta();saveState(false)});
+    $("#saveLocalButton").addEventListener("click",saveLocalBuild);
     $("#clearTeamButton").addEventListener("click",clearTeam);
-    ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(id){$("#"+id).addEventListener("change",syncMeta)});
-    $$("[data-sheet-mode]").forEach(function(b){b.addEventListener("click",function(){state.sheetMode=b.dataset.sheetMode;saveState(true);renderPreview()})});
+    ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(id){$("#"+id).addEventListener("change",function(){syncMeta(true)})});
+    $$("[data-sheet-mode]").forEach(function(b){b.addEventListener("click",function(){if(state.sheetMode!==b.dataset.sheetMode){state.sheetMode=b.dataset.sheetMode;markDirty()}renderPreview()})});
     $("#printButton").addEventListener("click",function(){renderPrint();window.print()});
     $("#shareButton").addEventListener("click",shareTeam);
     document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!$("#editorBackdrop").hidden)closeEditor()});
+    window.addEventListener("beforeunload",function(e){
+      if(state.activeBuild&&state.dirty){e.preventDefault();e.returnValue=""}
+    });
   }
 
   window.VCGApp={
     exportTeam:function(){
-      syncMeta();
+      syncMeta(false);
       return JSON.parse(JSON.stringify({
         game:state.game,
         sheetMode:state.sheetMode,
@@ -581,16 +716,19 @@
       }));
     },
     importTeam:function(payload){
-      if(!payload||!Array.isArray(payload.team))return false;
-      state.game=gameConfig[payload.game]?payload.game:"champions";
+      if(!payload||!Array.isArray(payload.team)||!gameConfig[payload.game])return false;
+      if(state.activeBuild&&!leaveBuild())return false;
+      state.game=payload.game;
       state.sheetMode=payload.sheetMode==="open"?"open":"full";
+      state.activeBuild=true;
+      state.dirty=false;
       state.meta=Object.assign({playerName:"",trainerName:"",playerId:"",yearOfBirth:""},payload.meta||{});
       state.team=payload.team.slice(0,6);
       while(state.team.length<6)state.team.push(null);
       document.body.dataset.game=state.game;
       $("#builderTitle").textContent=gameConfig[state.game].name;
       $("#builderGameArt").style.backgroundImage="url('"+gameConfig[state.game].art+"')";
-      populateMeta();renderTeam();saveState(true);navigate("team");
+      populateMeta();renderTeam();saveState(true);navigate("team",{skipBuildGuard:true});
       return true;
     },
     applyProfileDefaults:function(profile,overwrite){
@@ -606,19 +744,33 @@
     },
     toast:showToast,
     navigate:navigate,
-    routeTarget:routeTarget
+    routeTarget:routeTarget,
+    markSaved:markSaved,
+    hasActiveBuild:function(){return state.activeBuild},
+    isDirty:function(){return state.dirty}
   };
 
   function init(){
     loadState();renderStatInputs();populateMeta();wireEvents();
-    var initialGame=state.game||"champions";
-    state.game=initialGame;
-    document.body.dataset.game=initialGame;
-    $("#builderTitle").textContent=gameConfig[initialGame].name;
-    $("#builderGameArt").style.backgroundImage="url('"+gameConfig[initialGame].art+"')";
+    if(state.activeBuild&&state.game&&gameConfig[state.game]){
+      document.body.dataset.game=state.game;
+      $("#builderTitle").textContent=gameConfig[state.game].name;
+      $("#builderGameArt").style.backgroundImage="url('"+gameConfig[state.game].art+"')";
+    }
     renderTeam();
-    navigate(routeTarget(location.pathname),{skipHistory:true,instant:true});
-    window.addEventListener("popstate",function(){navigate(routeTarget(location.pathname),{skipHistory:true,instant:true})});
+
+    var requested=routeTarget(location.pathname);
+    if((requested==="team"||requested==="preview")&&!state.activeBuild)requested="home";
+    navigate(requested,{skipHistory:true,instant:true,silent:true,skipBuildGuard:true});
+
+    window.addEventListener("popstate",function(){
+      var requestedTarget=routeTarget(location.pathname);
+      var current=$(".view.is-active");
+      var currentTarget=current&&current.id==="builderView"?"team":current&&current.id==="previewView"?"preview":current&&current.id==="teamsView"?"teams":current&&current.id==="profileView"?"profile":"home";
+      if(!navigate(requestedTarget,{skipHistory:true,instant:true})){
+        history.pushState({target:currentTarget},"",routePaths[currentTarget]||"/");
+      }
+    });
     if("serviceWorker" in navigator)window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){})});
   }
 
