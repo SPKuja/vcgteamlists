@@ -585,3 +585,41 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
     margin-top:1.8mm;
   }
 }
+
+/* Rebalance A4 density: roomier than the compact pass while keeping six on one page */
+@media print{
+  .print-head{padding:1.8mm 1.8mm 2.6mm;margin-bottom:2.8mm}
+  .print-team{gap:2.5mm 2.7mm}
+
+  .print-mon-head{
+    grid-template-columns:26mm 1fr;
+    min-height:26mm;
+  }
+  .print-mon-art{min-height:26mm}
+  .print-mon-art img{
+    width:24mm;
+    height:24mm;
+  }
+  .print-mon-title{
+    padding:2.8mm 2.5mm 1.8mm 0;
+  }
+
+  .print-mon-body{
+    padding:2.3mm 2.3mm 2.4mm;
+  }
+  .print-row{
+    min-height:4.8mm;
+    margin-bottom:1mm;
+  }
+  .print-moves{
+    margin-top:1.7mm;
+    gap:1.15mm 1.5mm;
+  }
+  .print-move{
+    min-height:7.8mm;
+    padding-top:1.2mm;
+    padding-bottom:1mm;
+  }
+  .print-stats{margin-top:1.9mm}
+  .print-foot{margin-top:2.2mm}
+}

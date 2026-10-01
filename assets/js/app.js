@@ -942,7 +942,16 @@
     if(images.length){
       await Promise.all(images.map(waitForImage));
     }
-    await new Promise(function(resolve){requestAnimationFrame(function(){requestAnimationFrame(resolve)})});
+    if(document.fonts&&document.fonts.ready){
+      try{await document.fonts.ready}catch(e){}
+    }
+    await new Promise(function(resolve){
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){
+          setTimeout(resolve,150);
+        });
+      });
+    });
     window.print();
   }
 
