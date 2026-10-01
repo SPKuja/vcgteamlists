@@ -441,3 +441,49 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .print-move .move-type-icon{width:4.5mm;height:4.5mm}
   .print-mon-types .mon-type-icon{width:2.6mm;height:2.6mm;flex-basis:2.6mm}
 }
+
+/* Centre the new 73x73 white type glyphs inside their colour wedges */
+.move-type-badge{
+  top:0;
+  right:0;
+  transform:none;
+  width:33px;
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.move-type-icon{
+  width:16px;
+  height:16px;
+  object-fit:contain;
+  object-position:center;
+  margin:0;
+}
+.mon-type-icon{
+  width:10px;
+  height:10px;
+  object-fit:contain;
+  object-position:center;
+  margin:0;
+}
+
+@media print{
+  .print-move .move-type-badge{
+    top:0;
+    right:0;
+    transform:none;
+    width:8mm;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .print-move .move-type-icon{
+    width:4mm;
+    height:4mm;
+    object-fit:contain;
+    object-position:center;
+    margin:0;
+  }
+}
