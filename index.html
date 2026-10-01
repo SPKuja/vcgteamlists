@@ -8,7 +8,7 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.3.5">
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.3.6">
   <script defer src="/assets/js/app.js?v=0.3.5"></script>
   <script defer src="/assets/js/auth.js?v=0.3.5"></script>
 </head>
@@ -292,20 +292,45 @@
 
       <div class="new-team-game-grid">
         <button class="new-team-game champions" type="button" data-select-game="champions">
-          <strong>Pokémon Champions</strong>
-          <span>Stat Alignment · Stat Points</span>
+          <div class="new-team-game-logos single" aria-hidden="true">
+            <img src="/images/pokemon_champions.webp" alt="">
+          </div>
+          <div class="new-team-game-copy">
+            <strong>Pokémon Champions</strong>
+            <span>Stat Alignment · Stat Points</span>
+          </div>
         </button>
+
         <button class="new-team-game sv" type="button" data-select-game="sv">
-          <strong>Scarlet / Violet</strong>
-          <span>Tera Type · Nature</span>
+          <div class="new-team-game-logos dual" aria-hidden="true">
+            <img src="/images/pokemon_scarlet.webp" alt="">
+            <img src="/images/pokemon_violet.webp" alt="">
+          </div>
+          <div class="new-team-game-copy">
+            <strong>Scarlet / Violet</strong>
+            <span>Tera Type · Nature</span>
+          </div>
         </button>
+
         <button class="new-team-game swsh" type="button" data-select-game="swsh">
-          <strong>Sword / Shield</strong>
-          <span>Nature · Gigantamax</span>
+          <div class="new-team-game-logos dual" aria-hidden="true">
+            <img src="/images/pokemon_sword.webp" alt="">
+            <img src="/images/pokemon_shield.webp" alt="">
+          </div>
+          <div class="new-team-game-copy">
+            <strong>Sword / Shield</strong>
+            <span>Nature · Gigantamax</span>
+          </div>
         </button>
+
         <button class="new-team-game custom" type="button" data-select-game="custom">
-          <strong>Custom / Other</strong>
-          <span>Flexible team sheet</span>
+          <div class="new-team-game-logos single generic" aria-hidden="true">
+            <img src="/images/pokemon.svg" alt="">
+          </div>
+          <div class="new-team-game-copy">
+            <strong>Custom / Other</strong>
+            <span>Flexible team sheet</span>
+          </div>
         </button>
       </div>
     </div>

@@ -91,6 +91,7 @@ jobs:
             --exclude='.github/' \
             --exclude='README.md' \
             --exclude='.well-known/' \
+            --exclude='images/' \
             -e "ssh -i ~/.ssh/vcgteamlists_deploy" \
             ./ "$DREAMHOST_USER@$DREAMHOST_HOST:$DREAMHOST_PATH/"
 
