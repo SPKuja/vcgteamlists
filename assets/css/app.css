@@ -346,3 +346,6 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
 .save-team-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
 .save-team-actions .button{width:100%}
 @media(max-width:460px){.save-team-modal{padding:18px}.save-team-actions{grid-template-columns:1fr}}
+
+.game-card.swsh .game-art .art-one{z-index:2}
+.game-card.swsh .game-art .art-two{z-index:1}
