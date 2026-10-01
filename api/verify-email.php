@@ -5,7 +5,7 @@ require_method('GET');
 
 $token = (string) ($_GET['token'] ?? '');
 if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
-    header('Location: ' . base_url() . '/?verified=invalid');
+    header('Location: ' . base_url() . '/profile?verified=invalid');
     exit;
 }
 
@@ -39,5 +39,5 @@ try {
     throw $e;
 }
 
-header('Location: ' . base_url() . '/?verified=1');
+header('Location: ' . base_url() . '/profile?verified=1');
 exit;
