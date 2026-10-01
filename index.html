@@ -10,7 +10,7 @@
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/css/app.css?v=0.3.8">
   <script defer src="/assets/js/app.js?v=0.3.8"></script>
-  <script defer src="/assets/js/auth.js?v=0.3.8"></script>
+  <script defer src="/assets/js/auth.js?v=0.3.9"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -354,7 +354,7 @@
     <form class="save-team-modal" id="saveTeamForm">
       <header class="save-team-modal-head">
         <div>
-          <span class="eyebrow">Save team</span>
+          <span class="eyebrow" id="saveTeamDialogEyebrow">Save team</span>
           <h2 id="saveTeamDialogTitle">Name your team</h2>
         </div>
         <button class="icon-button" id="closeSaveTeamDialog" type="button" aria-label="Close save team dialog">×</button>
@@ -365,7 +365,7 @@
       </label>
       <div class="save-team-actions">
         <button class="button secondary" id="cancelSaveTeam" type="button">Cancel</button>
-        <button class="button primary" type="submit">Save Team</button>
+        <button class="button primary" id="saveTeamSubmit" type="submit">Save Team</button>
       </div>
       <div class="account-message" id="saveTeamMessage" role="status" aria-live="polite"></div>
     </form>

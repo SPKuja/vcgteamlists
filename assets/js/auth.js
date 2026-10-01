@@ -160,7 +160,7 @@
     var btn=$("#saveCloudButton");if(!btn)return;
     btn.hidden=!auth.user;
     if(!auth.user)return;
-    btn.textContent=savedNow?"✓ Saved":"Save Team";
+    btn.textContent=savedNow?"✓ Saved":(auth.currentTeamId?"Update Team":"Save Team");
   }
 
   function openSaveTeamDialog(){
@@ -168,6 +168,9 @@
     var payload=window.VCGApp.exportTeam();
     var existing=auth.teams.filter(function(t){return Number(t.id)===Number(auth.currentTeamId)})[0];
     $("#saveTeamName").value=existing?existing.name:suggestedTeamName(payload);
+    $("#saveTeamDialogEyebrow").textContent=existing?"Update team":"Save team";
+    $("#saveTeamDialogTitle").textContent=existing?"Update your team":"Name your team";
+    $("#saveTeamSubmit").textContent=existing?"Update Team":"Save Team";
     message("#saveTeamMessage","");
     var dialog=$("#saveTeamDialog");
     if(dialog&&typeof dialog.showModal==="function"){
