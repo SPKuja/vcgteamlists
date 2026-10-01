@@ -655,7 +655,7 @@
   }
 
   function wireEvents(){
-    $("[data-select-game]").forEach(function(b){b.addEventListener("click",function(){
+    $$("[data-select-game]").forEach(function(b){b.addEventListener("click",function(){
       var dialog=b.closest("#newTeamDialog");
       if(dialog&&dialog.open)dialog.close();
       selectGame(b.dataset.selectGame);
