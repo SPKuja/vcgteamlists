@@ -783,6 +783,34 @@
       '</section>';
   }
 
+  function waitForImage(img){
+    if(!img)return Promise.resolve();
+    if(img.complete&&img.naturalWidth>0){
+      if(typeof img.decode==="function")return img.decode().catch(function(){});
+      return Promise.resolve();
+    }
+    return new Promise(function(resolve){
+      var done=false;
+      function finish(){if(done)return;done=true;resolve()}
+      img.addEventListener("load",finish,{once:true});
+      img.addEventListener("error",finish,{once:true});
+      setTimeout(finish,4500);
+    }).then(function(){
+      if(img.complete&&img.naturalWidth>0&&typeof img.decode==="function")return img.decode().catch(function(){});
+    });
+  }
+
+  async function printTeamSheet(){
+    renderPrint();
+    var root=$("#printRoot");
+    var images=$("img",root);
+    if(images.length){
+      await Promise.all(images.map(waitForImage));
+    }
+    await new Promise(function(resolve){requestAnimationFrame(function(){requestAnimationFrame(resolve)})});
+    window.print();
+  }
+
   function shareTeam(){
     var completed=state.team.filter(function(m){return m&&m.name});
     if(!completed.length){showToast("Add at least one Pokémon before sharing");return}
@@ -859,7 +887,7 @@
     $("#clearTeamButton").addEventListener("click",clearTeam);
     ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(id){$("#"+id).addEventListener("change",function(){syncMeta(true)})});
     $$("[data-sheet-mode]").forEach(function(b){b.addEventListener("click",function(){if(state.sheetMode!==b.dataset.sheetMode){state.sheetMode=b.dataset.sheetMode;markDirty()}renderPreview()})});
-    $("#printButton").addEventListener("click",function(){renderPrint();window.print()});
+    $("#printButton").addEventListener("click",function(){printTeamSheet()});
     $("#shareButton").addEventListener("click",shareTeam);
     document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!$("#editorBackdrop").hidden)closeEditor()});
     window.addEventListener("beforeunload",function(e){

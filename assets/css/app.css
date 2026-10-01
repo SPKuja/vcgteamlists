@@ -427,3 +427,17 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .print-mon-types .mon-type{display:inline-flex;align-items:center;gap:.7mm;padding:.45mm 1.2mm .45mm .6mm}
   .print-mon-types .mon-type-icon{width:3.4mm;height:3.4mm;flex-basis:3.4mm}
 }
+
+/* Compact type icons */
+.move-type-badge{width:19px;height:19px;right:5px}
+.move-type-icon{width:19px;height:19px}
+.mon-type-icon{width:10px;height:10px;flex-basis:10px}
+.paper-move:after,.print-move:after{width:33px}
+
+@media print{
+  .print-move{padding-right:7.5mm}
+  .print-move:after{width:8mm}
+  .print-move .move-type-badge{width:4.5mm;height:4.5mm;right:1.1mm}
+  .print-move .move-type-icon{width:4.5mm;height:4.5mm}
+  .print-mon-types .mon-type-icon{width:2.6mm;height:2.6mm;flex-basis:2.6mm}
+}
