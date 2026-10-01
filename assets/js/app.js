@@ -245,6 +245,78 @@
     return true;
   }
 
+  var defensiveChart={
+    normal:[["fighting"],[],["ghost"]],fire:[["water","ground","rock"],["fire","grass","ice","bug","steel","fairy"],[]],
+    water:[["electric","grass"],["fire","water","ice","steel"],[]],electric:[["ground"],["electric","flying","steel"],[]],
+    grass:[["fire","ice","poison","flying","bug"],["water","electric","grass","ground"],[]],ice:[["fire","fighting","rock","steel"],["ice"],[]],
+    fighting:[["flying","psychic","fairy"],["bug","rock","dark"],[]],poison:[["ground","psychic"],["grass","fighting","poison","bug","fairy"],[]],
+    ground:[["water","grass","ice"],["poison","rock"],["electric"]],flying:[["electric","ice","rock"],["grass","fighting","bug"],["ground"]],
+    psychic:[["bug","ghost","dark"],["fighting","psychic"],[]],bug:[["fire","flying","rock"],["grass","fighting","ground"],[]],
+    rock:[["water","grass","fighting","ground","steel"],["normal","fire","poison","flying"],[]],ghost:[["ghost","dark"],["poison","bug"],["normal","fighting"]],
+    dragon:[["ice","dragon","fairy"],["fire","water","electric","grass"],[]],dark:[["fighting","bug","fairy"],["ghost","dark"],["psychic"]],
+    steel:[["fire","fighting","ground"],["normal","grass","ice","flying","psychic","bug","rock","dragon","steel","fairy"],["poison"]],
+    fairy:[["poison","steel"],["fighting","bug","dark"],["dragon"]]
+  };
+  var battleTypes=Object.keys(defensiveChart);
+
+  function matchupMultiplier(attacking,types){
+    return (types||[]).reduce(function(mult,type){
+      var chart=defensiveChart[moveTypeKey(type)];
+      if(!chart)return mult;
+      if(chart[2].indexOf(attacking)>=0)return 0;
+      if(chart[0].indexOf(attacking)>=0)return mult*2;
+      if(chart[1].indexOf(attacking)>=0)return mult*.5;
+      return mult;
+    },1);
+  }
+
+  function renderTeamInsights(mons){
+    var root=$("#teamInsights");
+    if(!root)return;
+    if(!mons||mons.length<2){
+      root.innerHTML='<div class="team-insights-empty"><span class="eyebrow">Team insights</span><strong>Add at least two Pokémon to see team-wide matchups.</strong></div>';
+      return;
+    }
+
+    var rows=battleTypes.map(function(type){
+      var row={type:type,weak:0,four:0,resist:0,immune:0,severity:0};
+      mons.forEach(function(mon){
+        var mult=matchupMultiplier(type,mon.types||[]);
+        if(mult===0)row.immune++;
+        else if(mult>1){row.weak++;row.severity+=mult;if(mult>=4)row.four++}
+        else if(mult<1)row.resist++;
+      });
+      return row;
+    });
+
+    var weak=rows.filter(function(x){return x.weak}).sort(function(a,b){
+      return b.weak-a.weak||b.four-a.four||b.severity-a.severity;
+    }).slice(0,4);
+    var answers=rows.filter(function(x){return x.resist+x.immune}).sort(function(a,b){
+      return (b.resist+b.immune)-(a.resist+a.immune)||b.immune-a.immune;
+    }).slice(0,4);
+    var unique={};
+    mons.forEach(function(mon){(mon.types||[]).forEach(function(t){unique[moveTypeKey(t)]=1})});
+
+    function chip(row,kind){
+      var label=prettyName(row.type);
+      var detail=kind==="weak"
+        ? row.weak+" weak"+(row.four?" · "+row.four+" ×4":"")
+        : (row.resist+row.immune)+" answer"+((row.resist+row.immune)===1?"":"s")+(row.immune?" · "+row.immune+" immune":"");
+      return '<div class="insight-type type-'+row.type+'">'+typeIconHtml(label,"insight-type-icon")+
+        '<span><strong>'+escapeHtml(label)+'</strong><small>'+escapeHtml(detail)+'</small></span></div>';
+    }
+
+    var lead=weak[0] ? prettyName(weak[0].type)+" affects "+weak[0].weak+" of "+mons.length+" Pokémon." : "No shared weaknesses found.";
+    root.innerHTML=
+      '<div class="team-insights-head"><div><span class="eyebrow">Team insights</span><h2>Defensive profile</h2></div>'+
+      '<div class="insight-summary-stats"><span><strong>'+mons.length+'</strong> Pokémon</span><span><strong>'+Object.keys(unique).length+'</strong> unique types</span></div></div>'+
+      '<div class="team-insights-grid">'+
+        '<article class="insight-panel weakness-panel"><div class="insight-panel-title"><span class="insight-symbol">!</span><div><h3>Major weaknesses</h3><p>'+escapeHtml(lead)+'</p></div></div><div class="insight-types">'+weak.map(function(x){return chip(x,"weak")}).join("")+'</div></article>'+
+        '<article class="insight-panel answer-panel"><div class="insight-panel-title"><span class="insight-symbol">✓</span><div><h3>Defensive answers</h3><p>Attack types your team resists or is immune to most often.</p></div></div><div class="insight-types">'+answers.map(function(x){return chip(x,"answer")}).join("")+'</div></article>'+
+      '</div><p class="insight-note">Type-based analysis only. Abilities, held items, moves and battle effects can change practical matchups.</p>';
+  }
+
   function renderTeam(){
     var grid=$("#teamGrid");grid.innerHTML="";
     var complete=0;
@@ -287,6 +359,7 @@
     completion.classList.toggle("is-complete",complete===6);
 
     var completedMons=state.team.filter(function(mon){return mon&&mon.name});
+    renderTeamInsights(completedMons);
     if(completedMons.some(function(mon){return mon.item&&!mon.itemImage})){
       hydrateItemMeta(completedMons).then(function(changed){if(changed)renderTeam()});
     }
