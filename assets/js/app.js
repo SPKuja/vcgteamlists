@@ -655,7 +655,17 @@
   }
 
   function wireEvents(){
-    $$("[data-select-game]").forEach(function(b){b.addEventListener("click",function(){selectGame(b.dataset.selectGame)})});
+    $("[data-select-game]").forEach(function(b){b.addEventListener("click",function(){
+      var dialog=b.closest("#newTeamDialog");
+      if(dialog&&dialog.open)dialog.close();
+      selectGame(b.dataset.selectGame);
+    })});
+    $("#openNewTeamDialog").addEventListener("click",function(){
+      var dialog=$("#newTeamDialog");
+      if(dialog&&typeof dialog.showModal==="function")dialog.showModal();
+    });
+    $("#closeNewTeamDialog").addEventListener("click",function(){$("#newTeamDialog").close()});
+    $("#newTeamDialog").addEventListener("click",function(e){if(e.target===this)this.close()});
     $$("[data-nav]").forEach(function(b){b.addEventListener("click",function(){navigate(b.dataset.nav)})});
     $("#teamGrid").addEventListener("click",function(e){var slot=e.target.closest(".team-slot");if(slot)openEditor(Number(slot.dataset.slot))});
     $("#closeEditorButton").addEventListener("click",closeEditor);

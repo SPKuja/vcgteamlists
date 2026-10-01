@@ -8,9 +8,9 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.3.3">
-  <script defer src="/assets/js/app.js?v=0.3.3"></script>
-  <script defer src="/assets/js/auth.js?v=0.3.3"></script>
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.3.4">
+  <script defer src="/assets/js/app.js?v=0.3.4"></script>
+  <script defer src="/assets/js/auth.js?v=0.3.4"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -161,7 +161,7 @@
             <span class="eyebrow">Cloud library</span>
             <h1 id="teamsTitle">My Teams</h1>
           </div>
-          <button class="button primary" type="button" data-nav="home">Build a new team</button>
+          <button class="button primary" type="button" id="openNewTeamDialog">Build a new team</button>
         </div>
 
         <div id="teamsGuest" class="teams-guest-card" hidden>
@@ -279,6 +279,37 @@
       <button data-nav="preview"><span>▤</span><small>Preview</small></button>
     </nav>
   </div>
+
+  <dialog class="new-team-dialog" id="newTeamDialog" aria-labelledby="newTeamDialogTitle">
+    <div class="new-team-modal">
+      <header class="new-team-modal-head">
+        <div>
+          <span class="eyebrow">New team</span>
+          <h2 id="newTeamDialogTitle">Choose your game</h2>
+        </div>
+        <button class="icon-button" id="closeNewTeamDialog" type="button" aria-label="Close game selector">×</button>
+      </header>
+
+      <div class="new-team-game-grid">
+        <button class="new-team-game champions" type="button" data-select-game="champions">
+          <strong>Pokémon Champions</strong>
+          <span>Stat Alignment · Stat Points</span>
+        </button>
+        <button class="new-team-game sv" type="button" data-select-game="sv">
+          <strong>Scarlet / Violet</strong>
+          <span>Tera Type · Nature</span>
+        </button>
+        <button class="new-team-game swsh" type="button" data-select-game="swsh">
+          <strong>Sword / Shield</strong>
+          <span>Nature · Gigantamax</span>
+        </button>
+        <button class="new-team-game custom" type="button" data-select-game="custom">
+          <strong>Custom / Other</strong>
+          <span>Flexible team sheet</span>
+        </button>
+      </div>
+    </div>
+  </dialog>
 
   <div class="editor-backdrop" id="editorBackdrop" hidden>
     <section class="editor-sheet" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
