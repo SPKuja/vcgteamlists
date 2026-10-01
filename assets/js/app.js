@@ -221,9 +221,10 @@
           if(ai!==bi)return ai-bi;
         }
         return a.localeCompare(b);
-      }).slice(0,16);
+      });
       if(!ranked.length){panel.innerHTML='<div class="field-empty">No matches</div>';return}
-      panel.innerHTML=ranked.map(function(name){
+      var visible=q?ranked.slice(0,80):ranked;
+      panel.innerHTML=visible.map(function(name){
         var preferred=priority.indexOf(name)!==-1;
         var tag=preferred?(resource==="ability"?"For this Pokémon":"Species move"):"";
         return '<button type="button" class="field-result" data-field-value="'+escapeHtml(prettyName(name))+'" data-target-input="'+escapeHtml(input.id)+'"><strong>'+escapeHtml(prettyName(name))+'</strong>'+(tag?'<small>'+tag+'</small>':'')+'</button>';
