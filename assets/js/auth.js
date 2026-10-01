@@ -102,6 +102,13 @@
     return {champions:"Pokémon Champions",sv:"Scarlet / Violet",swsh:"Sword / Shield",custom:"Custom / Other"}[game]||game;
   }
 
+  function gameLogoHtml(game){
+    if(game==="champions")return '<div class="cloud-game-logos single" aria-hidden="true"><img src="/images/pokemon_champions.webp" alt=""></div>';
+    if(game==="sv")return '<div class="cloud-game-logos dual" aria-hidden="true"><img src="/images/pokemon_scarlet.webp" alt=""><img src="/images/pokemon_violet.webp" alt=""></div>';
+    if(game==="swsh")return '<div class="cloud-game-logos dual" aria-hidden="true"><img src="/images/pokemon_sword.webp" alt=""><img src="/images/pokemon_shield.webp" alt=""></div>';
+    return '<div class="cloud-game-logos single generic" aria-hidden="true"><img src="/images/pokemon.svg" alt=""></div>';
+  }
+
   function teamImages(team){
     var mons=team.payload&&Array.isArray(team.payload.team)?team.payload.team.filter(Boolean).slice(0,6):[];
     return mons.map(function(mon){return mon.image?'<img src="'+esc(mon.image)+'" alt="">':''}).join("");
@@ -123,6 +130,7 @@
         '<button type="button" class="cloud-team-open" data-load-team="'+team.id+'">'+
           '<div class="cloud-team-images">'+teamImages(team)+'</div>'+
           '<div class="cloud-team-copy"><strong>'+esc(team.name)+'</strong><small>'+esc(friendlyGame(team.game))+' · '+mons.length+'/6 Pokémon</small></div>'+
+          gameLogoHtml(team.game)+
         '</button>'+
         '<div class="cloud-team-actions">'+
           '<button type="button" data-rename-team="'+team.id+'">Rename</button>'+

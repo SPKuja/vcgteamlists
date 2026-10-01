@@ -307,3 +307,30 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .new-team-game-logos.single img{max-height:48px}
   .new-team-game-logos.dual img{max-height:50px}
 }
+
+/* Game logo polish */
+.new-team-game{align-items:center;text-align:center}
+.new-team-game-logos{justify-content:center;width:100%}
+.new-team-game-copy{text-align:center;width:100%}
+
+.home-game-logos{position:absolute;left:22px;top:18px;z-index:3;height:58px;display:flex;align-items:center;gap:8px;pointer-events:none}
+.home-game-logos img{display:block;width:auto;object-fit:contain;filter:drop-shadow(0 5px 9px rgba(0,0,0,.22))}
+.home-game-logos.single img{max-height:54px;max-width:170px}
+.home-game-logos.dual img{max-height:50px;max-width:82px}
+.home-game-logos.generic img{max-height:48px;max-width:94px}
+
+.teams-library .cloud-team-open{grid-template-columns:110px minmax(0,1fr) 112px}
+.cloud-team-copy{min-width:0}
+.cloud-game-logos{height:54px;display:flex;align-items:center;justify-content:center;gap:5px;min-width:0}
+.cloud-game-logos img{display:block;width:auto;max-width:100%;object-fit:contain;filter:drop-shadow(0 3px 5px rgba(0,0,0,.12))}
+.cloud-game-logos.single img{max-height:44px;max-width:104px}
+.cloud-game-logos.dual img{max-height:42px;max-width:49%}
+.cloud-game-logos.generic img{max-height:40px;max-width:76px}
+
+@media(max-width:619px){
+  .home-game-logos{left:18px;top:16px;height:50px}
+  .home-game-logos.single img{max-height:46px;max-width:145px}
+  .home-game-logos.dual img{max-height:43px;max-width:70px}
+  .teams-library .cloud-team-open{grid-template-columns:92px minmax(0,1fr) 82px}
+  .cloud-game-logos.single img{max-width:78px}
+}
