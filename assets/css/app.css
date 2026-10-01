@@ -487,3 +487,15 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
     margin:0;
   }
 }
+
+/* Visually centre glyphs within the clipped move wedge */
+.move-type-badge{
+  justify-content:flex-end;
+  padding-right:6px;
+}
+@media print{
+  .print-move .move-type-badge{
+    justify-content:flex-end;
+    padding-right:1.2mm;
+  }
+}
