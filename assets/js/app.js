@@ -182,7 +182,7 @@
   }
 
   function closeFieldResults(exceptInputId){
-    $(".field-results").forEach(function(panel){
+    $$(".field-results").forEach(function(panel){
       if(panel.dataset.resultsFor!==exceptInputId)panel.hidden=true;
     });
   }
