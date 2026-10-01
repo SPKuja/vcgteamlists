@@ -550,6 +550,43 @@
     document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!$("#editorBackdrop").hidden)closeEditor()});
   }
 
+  window.VCGApp={
+    exportTeam:function(){
+      syncMeta();
+      return JSON.parse(JSON.stringify({
+        game:state.game,
+        sheetMode:state.sheetMode,
+        meta:state.meta,
+        team:state.team
+      }));
+    },
+    importTeam:function(payload){
+      if(!payload||!Array.isArray(payload.team))return false;
+      state.game=gameConfig[payload.game]?payload.game:"champions";
+      state.sheetMode=payload.sheetMode==="open"?"open":"full";
+      state.meta=Object.assign({playerName:"",trainerName:"",playerId:"",yearOfBirth:""},payload.meta||{});
+      state.team=payload.team.slice(0,6);
+      while(state.team.length<6)state.team.push(null);
+      document.body.dataset.game=state.game;
+      $("#builderTitle").textContent=gameConfig[state.game].name;
+      $("#builderGameArt").style.backgroundImage="url('"+gameConfig[state.game].art+"')";
+      populateMeta();renderTeam();saveState(true);navigate("team");
+      return true;
+    },
+    applyProfileDefaults:function(profile,overwrite){
+      if(!profile)return;
+      ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(key){
+        var value=profile[key];
+        if(value!==null&&value!==undefined&&String(value)!==""&&(overwrite||!state.meta[key]))state.meta[key]=String(value);
+      });
+      populateMeta();saveState(true);
+    },
+    defaultTeamName:function(){
+      return gameConfig[state.game].name+" team";
+    },
+    toast:showToast
+  };
+
   function init(){
     loadState();renderStatInputs();populateMeta();wireEvents();selectGame(state.game||"champions");renderTeam();
     navigate("home");

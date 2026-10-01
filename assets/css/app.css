@@ -153,3 +153,49 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .print-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:1mm;margin-top:2.5mm}.print-stat{text-align:center;border:.5pt solid #ddd;border-radius:1mm;padding:1.2mm .5mm}.print-stat small{display:block;font-size:5pt;text-transform:uppercase;color:#666}.print-stat strong{font-size:7pt}
   .print-foot{font-size:6pt;color:#777;margin-top:3mm;text-align:right}
 }
+.app-actions{display:flex;align-items:center;gap:8px}
+.account-button{height:38px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:rgba(255,255,255,.84);border-radius:14px;padding:0 11px 0 5px;font-size:11px;font-weight:850;cursor:pointer;box-shadow:var(--shadow-soft)}
+.account-button:hover{border-color:rgba(var(--accent-rgb),.35)}
+.account-avatar{width:28px;height:28px;border-radius:10px;display:grid;place-items:center;background:rgba(var(--accent-rgb),.1);color:var(--accent);background-position:center;background-size:cover}
+.account-avatar.has-image{color:transparent}
+.account-backdrop{position:fixed;inset:0;z-index:120;background:rgba(15,17,28,.45);backdrop-filter:blur(7px);display:flex;align-items:flex-end;justify-content:center}
+.account-backdrop[hidden]{display:none}
+.account-sheet{width:100%;max-height:94vh;background:var(--bg);border-radius:28px 28px 0 0;display:flex;flex-direction:column;box-shadow:0 -20px 70px rgba(0,0,0,.2);animation:sheetUp .25s ease;position:relative}
+.account-header{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)}
+.account-header h2{font-size:22px;margin:0;letter-spacing:-.03em}
+.account-scroll{overflow:auto;padding:18px 18px calc(28px + env(safe-area-inset-bottom))}
+.account-tabs{display:grid;grid-template-columns:1fr 1fr;padding:4px;background:#e8e9ef;border-radius:14px;margin-bottom:16px}
+.account-tabs button{border:0;background:transparent;border-radius:10px;min-height:42px;font-size:12px;font-weight:850;color:var(--muted);cursor:pointer}
+.account-tabs button.is-selected{background:#fff;color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.account-form{display:grid;gap:12px}
+.account-form .button{width:100%;margin-top:2px}
+.account-link{margin:0;text-align:left}
+.account-message{min-height:20px;margin-top:12px;font-size:11px;color:var(--muted);font-weight:700}
+.account-message.is-error{color:var(--danger)}
+.profile-hero{display:flex;align-items:center;gap:15px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:14px;margin-bottom:14px}
+.profile-hero>img{width:84px;height:84px;border-radius:22px;object-fit:cover;background:var(--surface-soft)}
+.profile-identity{min-width:0;flex:1}.profile-identity>strong{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis}
+.verified-badge{display:inline-block;margin-top:5px;padding:4px 7px;border-radius:999px;background:rgba(var(--accent-rgb),.1);color:var(--accent);font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+.profile-avatar-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+.compact-button{min-height:38px;padding:0 12px;font-size:11px}
+.profile-form{background:#fff;border:1px solid var(--line);border-radius:20px;padding:15px}
+.cloud-section{margin-top:20px}
+.cloud-save-row{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px}
+.cloud-team-list{display:grid;gap:8px}
+.cloud-empty{border:1px dashed var(--line);border-radius:16px;padding:18px;text-align:center;color:var(--muted);font-size:11px}
+.cloud-team{display:grid;grid-template-columns:1fr 40px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:17px;overflow:hidden}
+.cloud-team.is-current{border-color:rgba(var(--accent-rgb),.45);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.06)}
+.cloud-team-open{border:0;background:transparent;display:grid;grid-template-columns:92px 1fr;gap:11px;align-items:center;text-align:left;padding:10px;cursor:pointer;min-width:0}
+.cloud-team-open>div:last-child{min-width:0}.cloud-team-open strong{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cloud-team-open small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
+.cloud-team-images{height:44px;display:flex;align-items:center;overflow:hidden}.cloud-team-images img{width:34px;height:34px;object-fit:contain;margin-right:-11px;filter:drop-shadow(0 3px 3px rgba(0,0,0,.08))}
+.cloud-team-delete{width:32px;height:32px;border:0;border-radius:10px;background:transparent;color:var(--muted);font-size:20px;cursor:pointer}.cloud-team-delete:hover{background:#fff0f2;color:var(--danger)}
+.logout-button{width:100%;margin-top:20px}
+@media(min-width:620px){.cloud-save-row{grid-template-columns:1fr auto}}
+@media(min-width:960px){
+  .account-backdrop{align-items:stretch;justify-content:flex-end}
+  .account-sheet{width:min(560px,46vw);height:100vh;max-height:none;border-radius:28px 0 0 28px}
+  .account-header{padding:24px 24px 16px}.account-scroll{padding:20px 24px 34px}
+}
+@media(max-width:520px){
+  .beta-pill{display:none}.account-button{padding-right:8px}.account-button #accountLabel{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
