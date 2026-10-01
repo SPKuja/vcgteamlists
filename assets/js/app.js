@@ -136,6 +136,12 @@
     $("#removePokemonButton").style.visibility=mon.name?"visible":"hidden";
     $("#editorBackdrop").hidden=false;
     document.body.style.overflow="hidden";
+    Promise.all([
+      ensureResourceList("ability"),
+      ensureResourceList("item"),
+      ensureResourceList("nature"),
+      ensureResourceList("move")
+    ]).catch(function(){});
     setTimeout(function(){$("#pokemonSearch").focus()},180);
   }
 
@@ -189,6 +195,7 @@
   }
 
   async function showFieldSuggestions(input,forceOpen){
+    if(!input||!input.closest)return;
     var field=input.closest(".autocomplete-field");
     if(!field)return;
     var resource=field.dataset.resource;
