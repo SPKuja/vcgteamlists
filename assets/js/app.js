@@ -7,6 +7,7 @@
   var LOCAL_SAVE_KEY="vcg-saved-build-v1";
   var LIST_CACHE_KEY="vcg-pokemon-species-list-v2";
   var MOVE_META_CACHE_KEY="vcg-move-meta-v1";
+  var ITEM_META_CACHE_KEY="vcg-item-meta-v1";
   var statKeys=["hp","attack","defense","specialAttack","specialDefense","speed"];
   var statLabels={hp:"HP",attack:"Atk",defense:"Def",specialAttack:"SpA",specialDefense:"SpD",speed:"Spe"};
   var gameConfig={
@@ -24,6 +25,7 @@
   var pokemonList=[];
   var resourceLists={ability:null,item:null,nature:null,move:null};
   var moveMetaCache=null;
+  var itemMetaCache=null;
   var toastTimer=null;
 
   function $(s,root){return (root||document).querySelector(s)}
@@ -54,7 +56,7 @@
   }
   function emptyStats(){return {hp:"",attack:"",defense:"",specialAttack:"",specialDefense:"",speed:""}}
   function blankMon(){
-    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",gender:"",level:50,alignment:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""]};
+    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""]};
   }
   function showToast(message){
     var el=$("#toast");el.textContent=message;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.classList.remove("show")},2200);
@@ -538,6 +540,7 @@
     try{mon.availableMoves=JSON.parse(selected.dataset.moves||"[]")}catch(e){mon.availableMoves=[]}
     mon.ability=$("#abilityInput").value.trim();
     mon.item=$("#itemInput").value.trim();
+    mon.itemImage=existing.item===mon.item?(existing.itemImage||""):"";
     mon.gender=$("#genderInput").value;
     mon.level=Number($("#levelInput").value)||50;
     mon.alignment=$("#alignmentInput")?$("#alignmentInput").value.trim():"";
@@ -637,6 +640,57 @@
     return changed;
   }
 
+  function loadItemMetaCache(){
+    if(itemMetaCache)return itemMetaCache;
+    try{itemMetaCache=JSON.parse(localStorage.getItem(ITEM_META_CACHE_KEY)||"{}")}catch(e){itemMetaCache={}}
+    return itemMetaCache;
+  }
+
+  function saveItemMetaCache(){
+    try{localStorage.setItem(ITEM_META_CACHE_KEY,JSON.stringify(itemMetaCache||{}))}catch(e){}
+  }
+
+  async function getItemMeta(name){
+    var slug=moveSlug(name);
+    if(!slug)return {image:""};
+    var cache=loadItemMetaCache();
+    if(cache[slug])return cache[slug];
+    try{
+      var res=await fetch(API+"/item/"+encodeURIComponent(slug));
+      if(!res.ok)throw new Error("Item lookup failed");
+      var data=await res.json();
+      cache[slug]={image:data.sprites&&data.sprites.default?data.sprites.default:""};
+      saveItemMetaCache();
+      return cache[slug];
+    }catch(e){
+      cache[slug]={image:""};
+      saveItemMetaCache();
+      return cache[slug];
+    }
+  }
+
+  async function hydrateItemMeta(mons){
+    var changed=false;
+    await Promise.all((mons||[]).map(async function(mon){
+      if(!mon.item||mon.itemImage)return;
+      var meta=await getItemMeta(mon.item);
+      if(meta.image&&mon.itemImage!==meta.image){
+        mon.itemImage=meta.image;
+        changed=true;
+      }
+    }));
+    if(changed)saveState(true);
+    return changed;
+  }
+
+  function itemDetailHtml(mon,printMode){
+    var cls=printMode?"print-item-detail":"paper-item-detail";
+    return '<span class="'+cls+'">'+
+      (mon.itemImage?'<img src="'+escapeHtml(mon.itemImage)+'" alt="" loading="eager">':'')+
+      '<strong>'+escapeHtml(mon.item||"—")+'</strong>'+
+    '</span>';
+  }
+
   function moveTypeKey(type){
     return String(type||"").toLowerCase().replace(/[^a-z]/g,"")||"unknown";
   }
@@ -721,7 +775,7 @@
           '</div>'+
           '<div class="paper-details">'+
             '<div><small>Ability</small><strong>'+escapeHtml(mon.ability||"—")+'</strong></div>'+
-            '<div><small>Held Item</small><strong>'+escapeHtml(mon.item||"—")+'</strong></div>'+
+            '<div><small>Held Item</small>'+itemDetailHtml(mon,false)+'</div>'+
           '</div>'+
           '<div class="paper-moves">'+moves+'</div>'+
           '<div class="paper-extra">'+extras+'</div>'+
@@ -742,8 +796,8 @@
     renderPrint();
 
     if(!skipHydrate&&completed.length){
-      hydrateMoveMeta(completed).then(function(changed){
-        if(changed&&$("#previewView").classList.contains("is-active"))renderPreview(true);
+      Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed)]).then(function(results){
+        if((results[0]||results[1])&&$("#previewView").classList.contains("is-active"))renderPreview(true);
       });
     }
   }
@@ -767,7 +821,7 @@
         '</div>'+
         '<div class="print-mon-body">'+
           '<div class="print-row"><b>Ability</b><span>'+escapeHtml(mon.ability||"—")+'</span></div>'+
-          '<div class="print-row"><b>Held Item</b><span>'+escapeHtml(mon.item||"—")+'</span></div>'+
+          '<div class="print-row"><b>Held Item</b>'+itemDetailHtml(mon,true)+'</div>'+
           '<div class="print-moves">'+moves+'</div>'+
           (mode==="full"?'<div class="print-stats">'+printStatHtml(mon,true)+'</div>':'')+
         '</div>'+
@@ -801,6 +855,10 @@
   }
 
   async function printTeamSheet(){
+    var completed=state.team.filter(function(m){return m&&m.name});
+    if(completed.length){
+      await Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed)]);
+    }
     renderPrint();
     var root=$("#printRoot");
     var images=$("img",root);

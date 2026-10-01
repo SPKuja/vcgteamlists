@@ -499,3 +499,15 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
     padding-right:1.2mm;
   }
 }
+
+/* Held item artwork from PokéAPI */
+.paper-item-detail,.print-item-detail{display:flex;align-items:center;min-width:0}
+.paper-item-detail{gap:5px;margin-top:1px}
+.paper-item-detail img{width:18px;height:18px;object-fit:contain;image-rendering:auto;flex:0 0 18px}
+.paper-item-detail strong{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+@media print{
+  .print-item-detail{gap:1mm;min-width:0}
+  .print-item-detail img{width:4.5mm;height:4.5mm;object-fit:contain;flex:0 0 4.5mm}
+  .print-item-detail strong{font-weight:400;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
