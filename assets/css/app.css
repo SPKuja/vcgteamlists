@@ -511,3 +511,27 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .print-item-detail img{width:4.5mm;height:4.5mm;object-fit:contain;flex:0 0 4.5mm}
   .print-item-detail strong{font-weight:400;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 }
+
+/* Prominent Stat Alignment / Nature and Gender */
+.paper-traits,.print-traits{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.paper-trait-chip{display:inline-flex;align-items:center;gap:4px;min-height:22px;border-radius:7px;padding:3px 6px;background:#f0f1f5;border:1px solid #e1e2e8}
+.paper-trait-chip small{font-size:5px;text-transform:uppercase;letter-spacing:.04em;color:#777a86;font-weight:850}
+.paper-trait-chip strong{font-size:7px}
+.nature-effects{display:inline-flex;gap:3px;margin-left:1px}
+.nature-effects b{font-size:5.5px;padding:1px 3px;border-radius:4px}
+.nature-up{color:#167841;background:#e5f5ea}
+.nature-down{color:#ad3e49;background:#fae8ea}
+.gender-chip b{font-size:10px;line-height:1}
+.gender-chip.male b{color:#277bd8}
+.gender-chip.female b{color:#d14f8e}
+.gender-chip.neutral b{color:#767985}
+
+@media print{
+  .print-traits{gap:1mm;margin-top:1mm}
+  .print-trait-chip{display:inline-flex;align-items:center;gap:.8mm;min-height:4.4mm;border-radius:1.2mm;padding:.45mm 1mm;background:#f0f1f5;border:.35pt solid #dedfe5}
+  .print-trait-chip small{font-size:3.6pt;text-transform:uppercase;color:#777;font-weight:700}
+  .print-trait-chip strong{font-size:5pt}
+  .print-trait-chip .nature-effects{gap:.6mm}
+  .print-trait-chip .nature-effects b{font-size:3.6pt;padding:.25mm .6mm}
+  .print-trait-chip.gender-chip b{font-size:6pt}
+}

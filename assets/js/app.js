@@ -8,13 +8,14 @@
   var LIST_CACHE_KEY="vcg-pokemon-species-list-v2";
   var MOVE_META_CACHE_KEY="vcg-move-meta-v1";
   var ITEM_META_CACHE_KEY="vcg-item-meta-v1";
+  var NATURE_META_CACHE_KEY="vcg-nature-meta-v1";
   var statKeys=["hp","attack","defense","specialAttack","specialDefense","speed"];
   var statLabels={hp:"HP",attack:"Atk",defense:"Def",specialAttack:"SpA",specialDefense:"SpD",speed:"Spe"};
   var gameConfig={
-    champions:{name:"Pokémon Champions",subtitle:"Stat Alignment, Stat Points and final battle stats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",alignmentLabel:"Stat Alignment",statPoints:true,tera:false,gmax:false},
-    sv:{name:"Scarlet / Violet",subtitle:"Tera Type, nature/alignment, level and final stats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1008.png",alignmentLabel:"Nature / Alignment",statPoints:false,tera:true,gmax:false},
-    swsh:{name:"Sword / Shield",subtitle:"Nature, level, final stats and Gigantamax capability.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/888.png",alignmentLabel:"Nature",statPoints:false,tera:false,gmax:true},
-    custom:{name:"Custom / Other",subtitle:"A flexible team sheet for custom or legacy formats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png",alignmentLabel:"Nature / Alignment",statPoints:false,tera:false,gmax:false}
+    champions:{name:"Pokémon Champions",subtitle:"Stat Alignment, Stat Points and final battle stats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",alignmentLabel:"Stat Alignment",statPoints:true,tera:false,gmax:false,showLevel:false},
+    sv:{name:"Scarlet / Violet",subtitle:"Tera Type, nature/alignment, level and final stats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1008.png",alignmentLabel:"Nature / Alignment",statPoints:false,tera:true,gmax:false,showLevel:true},
+    swsh:{name:"Sword / Shield",subtitle:"Nature, level, final stats and Gigantamax capability.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/888.png",alignmentLabel:"Nature",statPoints:false,tera:false,gmax:true,showLevel:true},
+    custom:{name:"Custom / Other",subtitle:"A flexible team sheet for custom or legacy formats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png",alignmentLabel:"Nature / Alignment",statPoints:false,tera:false,gmax:false,showLevel:true}
   };
 
   var state={
@@ -26,6 +27,7 @@
   var resourceLists={ability:null,item:null,nature:null,move:null};
   var moveMetaCache=null;
   var itemMetaCache=null;
+  var natureMetaCache=null;
   var toastTimer=null;
 
   function $(s,root){return (root||document).querySelector(s)}
@@ -56,7 +58,7 @@
   }
   function emptyStats(){return {hp:"",attack:"",defense:"",specialAttack:"",specialDefense:"",speed:""}}
   function blankMon(){
-    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""]};
+    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",alignmentUp:"",alignmentDown:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""]};
   }
   function showToast(message){
     var el=$("#toast");el.textContent=message;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.classList.remove("show")},2200);
@@ -278,6 +280,7 @@
     if(config.gmax)html+='<label class="inline-toggle"><div><strong>Gigantamax capable</strong></div><input id="gmaxInput" type="checkbox"></label>';
     wrap.innerHTML=html;
     $("#statPointsSection").style.display=config.statPoints?"block":"none";
+    $("#levelField").hidden=config.showLevel===false;
     $("#movesNumber").textContent=config.statPoints?"04":"03";
     $("#alignmentInput").value=mon.alignment||"";
     if($("#teraInput"))$("#teraInput").value=mon.teraType||"";
@@ -544,6 +547,8 @@
     mon.gender=$("#genderInput").value;
     mon.level=Number($("#levelInput").value)||50;
     mon.alignment=$("#alignmentInput")?$("#alignmentInput").value.trim():"";
+    mon.alignmentUp=existing.alignment===mon.alignment?(existing.alignmentUp||""):"";
+    mon.alignmentDown=existing.alignment===mon.alignment?(existing.alignmentDown||""):"";
     mon.teraType=$("#teraInput")?$("#teraInput").value.trim():"";
     mon.gigantamax=$("#gmaxInput")?$("#gmaxInput").checked:false;
     statKeys.forEach(function(key){
@@ -691,6 +696,80 @@
     '</span>';
   }
 
+  function loadNatureMetaCache(){
+    if(natureMetaCache)return natureMetaCache;
+    try{natureMetaCache=JSON.parse(localStorage.getItem(NATURE_META_CACHE_KEY)||"{}")}catch(e){natureMetaCache={}}
+    return natureMetaCache;
+  }
+
+  function saveNatureMetaCache(){
+    try{localStorage.setItem(NATURE_META_CACHE_KEY,JSON.stringify(natureMetaCache||{}))}catch(e){}
+  }
+
+  function natureStatLabel(slug){
+    return {attack:"Atk",defense:"Def","special-attack":"SpA","special-defense":"SpD",speed:"Spe"}[slug]||prettyName(slug);
+  }
+
+  async function getNatureMeta(name){
+    var slug=moveSlug(name);
+    if(!slug)return {up:"",down:""};
+    var cache=loadNatureMetaCache();
+    if(cache[slug])return cache[slug];
+    try{
+      var res=await fetch(API+"/nature/"+encodeURIComponent(slug));
+      if(!res.ok)throw new Error("Nature lookup failed");
+      var data=await res.json();
+      cache[slug]={
+        up:data.increased_stat?natureStatLabel(data.increased_stat.name):"",
+        down:data.decreased_stat?natureStatLabel(data.decreased_stat.name):""
+      };
+      saveNatureMetaCache();
+      return cache[slug];
+    }catch(e){
+      cache[slug]={up:"",down:""};
+      saveNatureMetaCache();
+      return cache[slug];
+    }
+  }
+
+  async function hydrateNatureMeta(mons){
+    var changed=false;
+    await Promise.all((mons||[]).map(async function(mon){
+      if(!mon.alignment||(mon.alignmentUp||mon.alignmentDown))return;
+      var meta=await getNatureMeta(mon.alignment);
+      if(meta.up!==mon.alignmentUp){mon.alignmentUp=meta.up;changed=true}
+      if(meta.down!==mon.alignmentDown){mon.alignmentDown=meta.down;changed=true}
+    }));
+    if(changed)saveState(true);
+    return changed;
+  }
+
+  function alignmentChipHtml(mon,printMode){
+    if(!mon.alignment)return "";
+    var cls=printMode?"print-trait-chip":"paper-trait-chip";
+    var effects="";
+    if(mon.alignmentUp||mon.alignmentDown){
+      effects='<span class="nature-effects">'+
+        (mon.alignmentUp?'<b class="nature-up">'+escapeHtml(mon.alignmentUp)+' ↑</b>':'')+
+        (mon.alignmentDown?'<b class="nature-down">'+escapeHtml(mon.alignmentDown)+' ↓</b>':'')+
+      '</span>';
+    }
+    return '<span class="'+cls+' nature-chip"><small>'+escapeHtml(gameConfig[state.game].alignmentLabel)+'</small><strong>'+escapeHtml(mon.alignment)+'</strong>'+effects+'</span>';
+  }
+
+  function genderChipHtml(mon,printMode){
+    if(!mon.gender)return "";
+    var cls=printMode?"print-trait-chip":"paper-trait-chip";
+    var symbol=mon.gender==="Male"?"♂":mon.gender==="Female"?"♀":"◇";
+    var genderClass=mon.gender==="Male"?"male":mon.gender==="Female"?"female":"neutral";
+    return '<span class="'+cls+' gender-chip '+genderClass+'"><b>'+symbol+'</b><strong>'+escapeHtml(mon.gender)+'</strong></span>';
+  }
+
+  function traitChipsHtml(mon,printMode){
+    var content=alignmentChipHtml(mon,printMode)+genderChipHtml(mon,printMode);
+    return content?'<div class="'+(printMode?"print-traits":"paper-traits")+'">'+content+'</div>':"";
+  }
+
   function moveTypeKey(type){
     return String(type||"").toLowerCase().replace(/[^a-z]/g,"")||"unknown";
   }
@@ -724,11 +803,8 @@
 
   function monExtra(mon,mode){
     var bits=[];
-    if(mon.alignment)bits.push(gameConfig[state.game].alignmentLabel+": "+mon.alignment);
     if(state.game==="sv"&&mon.teraType)bits.push("Tera: "+mon.teraType);
     if(state.game==="swsh"&&mon.gigantamax)bits.push("Gigantamax: Yes");
-    if(mon.gender)bits.push(mon.gender);
-    bits.push("Lv. "+(mon.level||50));
     return bits;
   }
   function statHtml(mon,includePoints){
@@ -770,8 +846,8 @@
         '<div class="paper-mon-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
         '<div class="paper-mon-body">'+
           '<div class="paper-mon-top">'+
-            '<div><div class="paper-mon-name">'+escapeHtml(displayMonName(mon))+'</div>'+monTypePills(mon,false)+'</div>'+
-            '<span class="paper-level">Lv. '+escapeHtml(mon.level||50)+'</span>'+
+            '<div><div class="paper-mon-name">'+escapeHtml(displayMonName(mon))+'</div>'+monTypePills(mon,false)+traitChipsHtml(mon,false)+'</div>'+
+            (gameConfig[state.game].showLevel===false?'':'<span class="paper-level">Lv. '+escapeHtml(mon.level||50)+'</span>')+
           '</div>'+
           '<div class="paper-details">'+
             '<div><small>Ability</small><strong>'+escapeHtml(mon.ability||"—")+'</strong></div>'+
@@ -796,8 +872,8 @@
     renderPrint();
 
     if(!skipHydrate&&completed.length){
-      Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed)]).then(function(results){
-        if((results[0]||results[1])&&$("#previewView").classList.contains("is-active"))renderPreview(true);
+      Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed),hydrateNatureMeta(completed)]).then(function(results){
+        if((results[0]||results[1]||results[2])&&$("#previewView").classList.contains("is-active"))renderPreview(true);
       });
     }
   }
@@ -814,8 +890,8 @@
         '<div class="print-mon-head">'+
           '<div class="print-mon-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
           '<div class="print-mon-title">'+
-            '<div class="print-title-line"><h2>'+escapeHtml(displayMonName(mon))+'</h2><span>Lv. '+escapeHtml(mon.level||50)+'</span></div>'+
-            monTypePills(mon,true)+
+            '<div class="print-title-line"><h2>'+escapeHtml(displayMonName(mon))+'</h2>'+(gameConfig[state.game].showLevel===false?'':'<span>Lv. '+escapeHtml(mon.level||50)+'</span>')+'</div>'+
+            monTypePills(mon,true)+traitChipsHtml(mon,true)+
             (extraBits.length?'<p>'+escapeHtml(extraBits.join(" · "))+'</p>':'')+
           '</div>'+
         '</div>'+
@@ -857,7 +933,7 @@
   async function printTeamSheet(){
     var completed=state.team.filter(function(m){return m&&m.name});
     if(completed.length){
-      await Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed)]);
+      await Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed),hydrateNatureMeta(completed)]);
     }
     renderPrint();
     var root=$("#printRoot");
