@@ -26,12 +26,10 @@
         <div class="hero">
           <span class="eyebrow">Tournament prep, without the spreadsheet</span>
           <h1 id="homeTitle">Build a team sheet that looks as good as your team.</h1>
-          <p>Choose the game you are playing. We will adapt the fields, keep every Pokémon searchable, and create a clean list ready to print or share.</p>
         </div>
 
         <div class="section-heading">
           <div><span class="eyebrow">Step 1</span><h2>Choose your game</h2></div>
-          <p>This changes the information we ask for — never which Pokémon you can choose.</p>
         </div>
 
         <div class="game-grid">
@@ -88,11 +86,6 @@
           </button>
         </div>
 
-        <div class="principles">
-          <article><span class="principle-icon">✦</span><div><h3>Designed to look good</h3><p>Visual team building on screen, clean tournament formatting on paper.</p></div></article>
-          <article><span class="principle-icon">◫</span><div><h3>Made for your phone</h3><p>Large touch targets, full-screen editing and an installable app-like experience.</p></div></article>
-          <article><span class="principle-icon">↗</span><div><h3>Built to leave the screen</h3><p>Print an A4 list or use your phone's native share sheet.</p></div></article>
-        </div>
       </section>
 
       <section class="view" id="builderView" aria-labelledby="builderTitle">
@@ -101,7 +94,6 @@
             <button class="back-link" data-nav="home">← Change game</button>
             <span class="eyebrow">Your team</span>
             <h1 id="builderTitle">Pokémon Champions</h1>
-            <p id="builderSubtitle">Tap a slot to add or edit a Pokémon.</p>
           </div>
           <div class="builder-game-art" id="builderGameArt" aria-hidden="true"></div>
         </div>
@@ -138,7 +130,6 @@
             <button class="back-link" data-nav="team">← Back to team</button>
             <span class="eyebrow">Step 3</span>
             <h1 id="previewTitle">Team sheet preview</h1>
-            <p>Screen styling is kept separate from the document so the printed version stays crisp and practical.</p>
           </div>
           <div class="preview-actions">
             <button class="button secondary" id="shareButton">Share</button>
@@ -184,11 +175,10 @@
             <div class="search-input-wrap"><span>⌕</span><input id="pokemonSearch" autocomplete="off" placeholder="Start typing, e.g. Salamence"></div>
           </label>
           <div class="search-results" id="pokemonResults" hidden></div>
-          <p class="field-hint">Search is intentionally not restricted by game or regulation.</p>
         </div>
 
         <div class="form-section">
-          <div class="form-section-title"><span>01</span><div><h3>Battle details</h3><p>Everything visible on the core team list.</p></div></div>
+          <div class="form-section-title"><span>01</span><div><h3>Battle details</h3></div></div>
           <div class="form-grid two">
             <label><span>Ability</span><input id="abilityInput" placeholder="e.g. Intimidate"></label>
             <label><span>Held item</span><input id="itemInput" placeholder="e.g. Focus Sash"></label>
@@ -199,17 +189,17 @@
         </div>
 
         <div class="form-section">
-          <div class="form-section-title"><span>02</span><div><h3>Final stats</h3><p>Enter the values shown in-game for this Pokémon.</p></div></div>
+          <div class="form-section-title"><span>02</span><div><h3>Final stats</h3></div></div>
           <div class="stat-grid" id="finalStats"></div>
         </div>
 
         <div class="form-section" id="statPointsSection">
-          <div class="form-section-title"><span>03</span><div><h3>Stat Points</h3><p>Champions training allocation.</p></div></div>
+          <div class="form-section-title"><span>03</span><div><h3>Stat Points</h3></div></div>
           <div class="stat-grid" id="statPoints"></div>
         </div>
 
         <div class="form-section">
-          <div class="form-section-title"><span id="movesNumber">04</span><div><h3>Moves</h3><p>Free type so new or unusual move data never gets blocked.</p></div></div>
+          <div class="form-section-title"><span id="movesNumber">04</span><div><h3>Moves</h3></div></div>
           <div class="move-grid">
             <label><span>Move 1</span><input class="move-input" data-move="0" placeholder="Move"></label>
             <label><span>Move 2</span><input class="move-input" data-move="1" placeholder="Move"></label>
