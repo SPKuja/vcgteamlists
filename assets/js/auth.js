@@ -27,33 +27,16 @@
     var method=(options.method||"GET").toUpperCase();
     var headers=Object.assign({"Accept":"application/json"},options.headers||{});
     var body=options.body;
-
     if(method!=="GET"){
       headers["X-CSRF-Token"]=auth.csrf;
-      if(body&&!(body instanceof FormData)){
-        headers["Content-Type"]="application/json";
-        body=JSON.stringify(body);
-      }
+      if(body&&!(body instanceof FormData)){headers["Content-Type"]="application/json";body=JSON.stringify(body)}
     }
-
-    var response=await fetch("/api/"+path,{
-      method:method,
-      headers:headers,
-      body:body,
-      credentials:"same-origin",
-      cache:"no-store"
-    });
+    var response=await fetch("/api/"+path,{method:method,headers:headers,body:body,credentials:"same-origin",cache:"no-store"});
     var data={};
     try{data=await response.json()}catch(e){data={error:"The server returned an invalid response."}}
-
-    if(response.status===419&&!retry){
-      await refreshSession();
-      return api(path,options,true);
-    }
+    if(response.status===419&&!retry){await refreshSession();return api(path,options,true)}
     if(!response.ok){
-      var err=new Error(data.error||"Request failed.");
-      err.status=response.status;err.code=data.code||"";err.data=data;
-      throw err;
+      var err=new Error(data.error||"Request failed.");err.status=response.status;err.code=data.code||"";throw err;
     }
     return data;
   }
@@ -63,21 +46,15 @@
       var form=$("#"+p+"Form");if(form)form.hidden=p!==name;
     });
     $("#registeredPane").hidden=name!=="registered";
-    $(".account-tabs [data-auth-pane]").forEach(function(btn){btn.classList.toggle("is-selected",btn.dataset.authPane===name)});
+    $$(".account-tabs [data-auth-pane]").forEach(function(btn){btn.classList.toggle("is-selected",btn.dataset.authPane===name)});
     $(".account-tabs").hidden=name==="forgot"||name==="reset"||name==="registered";
     $("#resendVerificationButton").hidden=true;
     message("#authMessage","");
   }
 
-  function openAccount(pane){
-    $("#accountBackdrop").hidden=false;
-    document.body.style.overflow="hidden";
+  function showProfile(pane){
+    if(window.VCGApp)window.VCGApp.navigate("profile");
     if(!auth.user)setPane(pane||"login");
-  }
-
-  function closeAccount(){
-    $("#accountBackdrop").hidden=true;
-    document.body.style.overflow="";
   }
 
   function renderAccountButton(){
@@ -96,15 +73,14 @@
   }
 
   function renderProfile(){
-    var user=auth.user;
-    if(!user)return;
-    $("#profileEmail").textContent=user.email;
-    $("#profileAvatar").src=user.avatarUrl;
-    $("#profilePlayerName").value=user.playerName||"";
-    $("#profileTrainerName").value=user.trainerName||"";
-    $("#profilePlayerId").value=user.playerId||"";
-    $("#profileYearOfBirth").value=user.yearOfBirth||"";
-    $("#removeAvatarButton").hidden=user.avatarMode!=="custom";
+    if(!auth.user)return;
+    $("#profileEmail").textContent=auth.user.email;
+    $("#profileAvatar").src=auth.user.avatarUrl;
+    $("#profilePlayerName").value=auth.user.playerName||"";
+    $("#profileTrainerName").value=auth.user.trainerName||"";
+    $("#profilePlayerId").value=auth.user.playerId||"";
+    $("#profileYearOfBirth").value=auth.user.yearOfBirth||"";
+    $("#removeAvatarButton").hidden=auth.user.avatarMode!=="custom";
   }
 
   function renderAuth(){
@@ -119,6 +95,11 @@
     }else{
       auth.teams=[];auth.currentTeamId=null;renderTeams();
     }
+    updateBuilderSaveButton(false);
+  }
+
+  function friendlyGame(game){
+    return {champions:"Pokémon Champions",sv:"Scarlet / Violet",swsh:"Sword / Shield",custom:"Custom / Other"}[game]||game;
   }
 
   function teamImages(team){
@@ -126,20 +107,13 @@
     return mons.map(function(mon){return mon.image?'<img src="'+esc(mon.image)+'" alt="">':''}).join("");
   }
 
-  function friendlyGame(game){
-    return {champions:"Pokémon Champions",sv:"Scarlet / Violet",swsh:"Sword / Shield",custom:"Custom / Other"}[game]||game;
-  }
-
   function renderTeams(){
-    var list=$("#cloudTeamList");
-    if(!list)return;
-    $("#savedTeamCount").textContent=auth.teams.length+" "+(auth.teams.length===1?"team":"teams");
-    if(!auth.user){
-      list.innerHTML="";
-      return;
-    }
+    var list=$("#cloudTeamList");if(!list)return;
+    var count=$("#savedTeamCount");
+    if(count)count.textContent=auth.teams.length+" "+(auth.teams.length===1?"team":"teams");
+    if(!auth.user){list.innerHTML="";return}
     if(!auth.teams.length){
-      list.innerHTML='<div class="cloud-empty"><strong>No saved teams yet</strong><span>Save your current build above and it will appear here.</span></div>';
+      list.innerHTML='<div class="cloud-empty"><strong>No saved teams yet</strong><span>Build a team, then use Save to account in the team builder.</span></div>';
       return;
     }
     list.innerHTML=auth.teams.map(function(team){
@@ -165,65 +139,44 @@
       var data=await api("teams.php");
       auth.teams=data.teams||[];
       renderTeams();
-    }catch(err){
-      message("#teamPageMessage",err.message,true);
-    }
+    }catch(err){message("#teamPageMessage",err.message,true)}
   }
 
-  async function saveCurrentTeam(forceNew){
-    if(!auth.user){openAccount("login");return}
-    if(!window.VCGApp)return;
+  function suggestedTeamName(payload){
+    var mons=(payload.team||[]).filter(function(mon){return mon&&mon.name}).slice(0,2).map(function(mon){return mon.name});
+    if(mons.length)return mons.join(" / ");
+    return window.VCGApp.defaultTeamName();
+  }
+
+  function updateBuilderSaveButton(savedNow){
+    var btn=$("#saveCloudButton");if(!btn)return;
+    if(!auth.user){btn.textContent="Save to account";return}
+    if(savedNow){btn.textContent="✓ Saved";return}
+    btn.textContent=auth.currentTeamId?"Update saved team":"Save to account";
+  }
+
+  async function saveFromBuilder(){
+    if(!auth.user){showProfile("login");return}
     var payload=window.VCGApp.exportTeam();
-    var name=$("#cloudTeamName").value.trim()||window.VCGApp.defaultTeamName();
+    var existing=auth.teams.filter(function(t){return Number(t.id)===Number(auth.currentTeamId)})[0];
+    var name=existing?existing.name:suggestedTeamName(payload);
     try{
       var data=await api("teams.php",{method:"POST",body:{
-        id:forceNew?undefined:(auth.currentTeamId||undefined),
-        name:name,
-        game:payload.game,
-        payload:payload
+        id:auth.currentTeamId||undefined,name:name,game:payload.game,payload:payload
       }});
       auth.currentTeamId=data.team.id;
-      $("#cloudTeamName").value=data.team.name;
       await loadTeams();
-      message("#teamPageMessage",forceNew?"New team saved.":"Team saved.");
-      window.VCGApp.toast(forceNew?"Saved as a new team":"Team saved to your account");
-    }catch(err){
-      message("#teamPageMessage",err.message,true);
-    }
-  }
-
-  async function renameTeam(id){
-    var team=auth.teams.filter(function(item){return Number(item.id)===Number(id)})[0];
-    if(!team)return;
-    var next=prompt("Rename team",team.name);
-    if(next===null)return;
-    next=next.trim();
-    if(!next)return;
-    try{
-      var data=await api("teams.php",{method:"POST",body:{id:team.id,name:next,game:team.game,payload:team.payload}});
-      if(Number(auth.currentTeamId)===Number(team.id))$("#cloudTeamName").value=data.team.name;
-      await loadTeams();
-      message("#teamPageMessage","Team renamed.");
-    }catch(err){message("#teamPageMessage",err.message,true)}
-  }
-
-  async function duplicateTeam(id){
-    var team=auth.teams.filter(function(item){return Number(item.id)===Number(id)})[0];
-    if(!team)return;
-    try{
-      await api("teams.php",{method:"POST",body:{name:team.name+" copy",game:team.game,payload:team.payload}});
-      await loadTeams();
-      message("#teamPageMessage","Team duplicated.");
-    }catch(err){message("#teamPageMessage",err.message,true)}
+      updateBuilderSaveButton(true);
+      window.VCGApp.toast(existing?"Saved team updated":"Team saved to your account");
+      setTimeout(function(){updateBuilderSaveButton(false)},1600);
+    }catch(err){window.VCGApp.toast(err.message)}
   }
 
   async function login(event){
-    event.preventDefault();
-    message("#authMessage","");
+    event.preventDefault();message("#authMessage","");
     try{
       var data=await api("login.php",{method:"POST",body:{
-        email:$("#loginEmail").value.trim(),
-        password:$("#loginPassword").value
+        email:$("#loginEmail").value.trim(),password:$("#loginPassword").value
       }});
       auth.csrf=data.csrf||auth.csrf;
       auth.user=data.user;
@@ -239,24 +192,18 @@
   async function register(event){
     event.preventDefault();
     var password=$("#registerPassword").value;
-    if(password!==$("#registerPasswordConfirm").value){
-      message("#authMessage","Passwords do not match.",true);return;
-    }
+    if(password!==$("#registerPasswordConfirm").value){message("#authMessage","Passwords do not match.",true);return}
     try{
-      var data=await api("register.php",{method:"POST",body:{
-        email:$("#registerEmail").value.trim(),password:password
-      }});
+      await api("register.php",{method:"POST",body:{email:$("#registerEmail").value.trim(),password:password}});
       var email=$("#registerEmail").value.trim();
-      $("#loginEmail").value=email;
-      $("#registeredEmail").textContent=email;
-      $("#registerPassword").value="";
-      $("#registerPasswordConfirm").value="";
+      $("#loginEmail").value=email;$("#registeredEmail").textContent=email;
+      $("#registerPassword").value="";$("#registerPasswordConfirm").value="";
       setPane("registered");
     }catch(err){message("#authMessage",err.message,true)}
   }
 
   async function resendVerification(){
-    var email=$("#loginEmail").value.trim()||$("#registerEmail").value.trim();
+    var email=$("#loginEmail").value.trim()||$("#registerEmail").value.trim()||$("#registeredEmail").textContent.trim();
     if(!email){message("#authMessage","Enter your email address first.",true);return}
     try{
       var data=await api("resend-verification.php",{method:"POST",body:{email:email}});
@@ -275,12 +222,10 @@
   async function resetPassword(event){
     event.preventDefault();
     var password=$("#resetPassword").value;
-    if(password!==$("#resetPasswordConfirm").value){
-      message("#authMessage","Passwords do not match.",true);return;
-    }
+    if(password!==$("#resetPasswordConfirm").value){message("#authMessage","Passwords do not match.",true);return}
     try{
       var data=await api("reset-password.php",{method:"POST",body:{token:auth.resetToken,password:password}});
-      history.replaceState({},document.title,location.pathname);
+      history.replaceState({},document.title,"/profile");
       auth.resetToken="";
       setPane("login");
       message("#authMessage",data.message||"Password updated.");
@@ -296,14 +241,12 @@
         playerId:$("#profilePlayerId").value.trim(),
         yearOfBirth:$("#profileYearOfBirth").value.trim()
       }});
-      auth.user=data.user;
-      renderAuth();
+      auth.user=data.user;renderAuth();
       if(window.VCGApp)window.VCGApp.applyProfileDefaults(auth.user,true);
-      message("#profileMessage","✓ Profile saved.");
-      $("#profileMessage").classList.add("is-success");
-      var saveButton=$("#profileSaveButton");
-      saveButton.textContent="✓ Saved";
-      setTimeout(function(){saveButton.textContent="Save profile";$("#profileMessage").classList.remove("is-success")},1800);
+      message("#profileMessage","");
+      $("#profileSavedState").hidden=false;
+      $("#profileSaveButton").textContent="✓ Saved";
+      setTimeout(function(){$("#profileSavedState").hidden=true;$("#profileSaveButton").textContent="Save profile"},2200);
     }catch(err){message("#profileMessage",err.message,true)}
   }
 
@@ -313,7 +256,14 @@
     try{
       var data=await api("avatar.php",{method:"POST",body:form});
       auth.user=data.user;renderAuth();
-      message("#profileMessage","Avatar updated.");
+      $("#profileSavedState").hidden=false;
+      $("#profileSavedState strong").textContent="Avatar updated";
+      $("#profileSavedState small").textContent="Your new avatar is now active.";
+      setTimeout(function(){
+        $("#profileSavedState").hidden=true;
+        $("#profileSavedState strong").textContent="Profile saved";
+        $("#profileSavedState small").textContent="Your player details will be used as defaults for new builds.";
+      },2200);
     }catch(err){message("#profileMessage",err.message,true)}
     $("#avatarInput").value="";
   }
@@ -331,16 +281,17 @@
     auth.user=null;auth.teams=[];auth.currentTeamId=null;
     await refreshSession();
     setPane("login");
+    window.VCGApp.navigate("profile");
     message("#authMessage","Signed out.");
   }
 
   async function loadTeam(id){
     var team=auth.teams.filter(function(item){return Number(item.id)===Number(id)})[0];
-    if(!team||!window.VCGApp)return;
+    if(!team)return;
     if(window.VCGApp.importTeam(team.payload)){
       auth.currentTeamId=team.id;
-      $("#cloudTeamName").value=team.name;
-      renderTeams();closeAccount();
+      updateBuilderSaveButton(false);
+      renderTeams();
       window.VCGApp.toast(team.name+" loaded");
     }
   }
@@ -350,28 +301,37 @@
     if(!team||!confirm('Delete "'+team.name+'"?'))return;
     try{
       await api("teams.php?id="+encodeURIComponent(id),{method:"DELETE"});
-      if(Number(auth.currentTeamId)===Number(id)){auth.currentTeamId=null;$("#cloudTeamName").value=""}
+      if(Number(auth.currentTeamId)===Number(id))auth.currentTeamId=null;
       await loadTeams();
-      message("#profileMessage","Team deleted.");
-    }catch(err){message("#profileMessage",err.message,true)}
+      updateBuilderSaveButton(false);
+      message("#teamPageMessage","Team deleted.");
+    }catch(err){message("#teamPageMessage",err.message,true)}
+  }
+
+  async function renameTeam(id){
+    var team=auth.teams.filter(function(item){return Number(item.id)===Number(id)})[0];if(!team)return;
+    var next=prompt("Rename team",team.name);if(next===null)return;next=next.trim();if(!next)return;
+    try{
+      await api("teams.php",{method:"POST",body:{id:team.id,name:next,game:team.game,payload:team.payload}});
+      await loadTeams();message("#teamPageMessage","Team renamed.");
+    }catch(err){message("#teamPageMessage",err.message,true)}
+  }
+
+  async function duplicateTeam(id){
+    var team=auth.teams.filter(function(item){return Number(item.id)===Number(id)})[0];if(!team)return;
+    try{
+      await api("teams.php",{method:"POST",body:{name:team.name+" copy",game:team.game,payload:team.payload}});
+      await loadTeams();message("#teamPageMessage","Team duplicated.");
+    }catch(err){message("#teamPageMessage",err.message,true)}
   }
 
   function wire(){
-    $("#accountButton").addEventListener("click",function(){openAccount()});
-    $("#saveCloudButton").addEventListener("click",function(){
-      if(auth.user){
-        window.VCGApp.navigate("teams");
-        setTimeout(function(){
-          if(!$("#cloudTeamName").value)$("#cloudTeamName").value=window.VCGApp.defaultTeamName();
-          $("#cloudTeamName").focus();
-        },100);
-      }else openAccount("login");
-    });
-    $("#closeAccountButton").addEventListener("click",closeAccount);
-    $("#manageTeamsButton").addEventListener("click",function(){closeAccount();window.VCGApp.navigate("teams")});
-    $("#teamsSignInButton").addEventListener("click",function(){openAccount("login")});
+    $("#accountButton").addEventListener("click",function(){showProfile()});
+    $("#saveCloudButton").addEventListener("click",saveFromBuilder);
+    $("#manageTeamsButton").addEventListener("click",function(){window.VCGApp.navigate("teams")});
+    $("#teamsSignInButton").addEventListener("click",function(){showProfile("login")});
 
-    $$("[data-auth-pane]").forEach(function(btn){btn.addEventListener("click",function(){setPane(btn.dataset.authPane)})});
+    $$("#profileView [data-auth-pane]").forEach(function(btn){btn.addEventListener("click",function(){setPane(btn.dataset.authPane)})});
     $("#forgotPasswordButton").addEventListener("click",function(){setPane("forgot");$("#forgotEmail").value=$("#loginEmail").value.trim()});
     $("#resendVerificationButton").addEventListener("click",resendVerification);
     $("#registeredResendButton").addEventListener("click",resendVerification);
@@ -386,32 +346,25 @@
     $("#avatarInput").addEventListener("change",function(e){uploadAvatar(e.target.files&&e.target.files[0])});
     $("#removeAvatarButton").addEventListener("click",removeAvatar);
     $("#logoutButton").addEventListener("click",logout);
-    $("#saveCurrentCloudTeam").addEventListener("click",function(){saveCurrentTeam(false)});
-    $("#saveAsNewCloudTeam").addEventListener("click",function(){saveCurrentTeam(true)});
 
     $("#cloudTeamList").addEventListener("click",function(e){
-      var load=e.target.closest("[data-load-team]");
-      if(load){loadTeam(load.dataset.loadTeam);return}
-      var rename=e.target.closest("[data-rename-team]");
-      if(rename){renameTeam(rename.dataset.renameTeam);return}
-      var duplicate=e.target.closest("[data-duplicate-team]");
-      if(duplicate){duplicateTeam(duplicate.dataset.duplicateTeam);return}
-      var del=e.target.closest("[data-delete-team]");
-      if(del)deleteTeam(del.dataset.deleteTeam);
+      var load=e.target.closest("[data-load-team]");if(load){loadTeam(load.dataset.loadTeam);return}
+      var rename=e.target.closest("[data-rename-team]");if(rename){renameTeam(rename.dataset.renameTeam);return}
+      var duplicate=e.target.closest("[data-duplicate-team]");if(duplicate){duplicateTeam(duplicate.dataset.duplicateTeam);return}
+      var del=e.target.closest("[data-delete-team]");if(del)deleteTeam(del.dataset.deleteTeam);
+    });
+
+    document.addEventListener("click",function(e){
+      if(e.target.closest("[data-select-game]")){auth.currentTeamId=null;updateBuilderSaveButton(false)}
     });
 
     document.addEventListener("vcg:navigate",function(e){
-      if(e.detail&&e.detail.target==="teams"){
+      if(!e.detail)return;
+      if(e.detail.target==="teams"){
         renderAuth();
-        if(auth.user){
-          if(!$("#cloudTeamName").value)$("#cloudTeamName").value=window.VCGApp.defaultTeamName();
-          loadTeams();
-        }
+        if(auth.user)loadTeams();
       }
-    });
-
-    document.addEventListener("keydown",function(e){
-      if(e.key==="Escape"&&!$("#accountBackdrop").hidden)closeAccount();
+      if(e.detail.target==="profile"&&!auth.user&&auth.resetToken)setPane("reset");
     });
   }
 
@@ -422,18 +375,18 @@
     try{
       await refreshSession();
       if(auth.user)loadTeams();
-    }catch(err){
-      message("#authMessage","Account service is temporarily unavailable.",true);
-    }
+    }catch(err){message("#authMessage","Account service is temporarily unavailable.",true)}
 
     if(params.get("verified")==="1"){
-      history.replaceState({},document.title,location.pathname);
-      openAccount("login");message("#authMessage","Email verified. You can sign in.");
+      history.replaceState({},document.title,"/profile");
+      window.VCGApp.navigate("profile",{skipHistory:true});
+      setPane("login");message("#authMessage","Email verified. You can sign in.");
     }else if(params.get("verified")==="invalid"){
-      history.replaceState({},document.title,location.pathname);
-      openAccount("login");message("#authMessage","That verification link is invalid or expired.",true);
+      history.replaceState({},document.title,"/profile");
+      window.VCGApp.navigate("profile",{skipHistory:true});
+      setPane("login");message("#authMessage","That verification link is invalid or expired.",true);
     }else if(auth.resetToken){
-      openAccount("reset");setPane("reset");
+      window.VCGApp.navigate("profile",{skipHistory:true});setPane("reset");
     }
   }
 
