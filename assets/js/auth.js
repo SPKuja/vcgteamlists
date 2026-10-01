@@ -165,6 +165,7 @@
         id:auth.currentTeamId||undefined,name:name,game:payload.game,payload:payload
       }});
       auth.currentTeamId=data.team.id;
+      if(window.VCGApp)window.VCGApp.markSaved();
       await loadTeams();
       updateBuilderSaveButton(true);
       window.VCGApp.toast(existing?"Saved team updated":"Team saved to your account");
@@ -357,6 +358,12 @@
     document.addEventListener("click",function(e){
       if(e.target.closest("[data-select-game]")){auth.currentTeamId=null;updateBuilderSaveButton(false)}
     });
+    document.addEventListener("vcg:buildreset",function(){
+      auth.currentTeamId=null;
+      updateBuilderSaveButton(false);
+    });
+    document.addEventListener("vcg:buildsaved",function(){updateBuilderSaveButton(true)});
+    document.addEventListener("vcg:builddirty",function(){updateBuilderSaveButton(false)});
 
     document.addEventListener("vcg:navigate",function(e){
       if(!e.detail)return;
