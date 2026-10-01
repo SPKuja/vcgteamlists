@@ -97,10 +97,10 @@
   function navigate(target,options){
     options=options||{};
     if(target==="team"&&!state.game)target="home";
-    $(".view").forEach(function(v){v.classList.remove("is-active")});
+    $$(".view").forEach(function(v){v.classList.remove("is-active")});
     var id=target==="home"?"homeView":target==="preview"?"previewView":target==="teams"?"teamsView":target==="profile"?"profileView":"builderView";
     $("#"+id).classList.add("is-active");
-    $(".bottom-nav button").forEach(function(b){b.classList.toggle("is-active",b.dataset.nav===target)});
+    $$(".bottom-nav button").forEach(function(b){b.classList.toggle("is-active",b.dataset.nav===target)});
     if(target==="preview")renderPreview();
     if(!options.skipHistory){
       var next=routePaths[target]||"/";
