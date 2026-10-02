@@ -247,9 +247,73 @@
   function cardReferenceText(card){
     var code=String(card._setCode||card.setCode||"");
     var local=String(card.localId||"");
+    var total=Number(card._setOfficialCount||card.setOfficialCount||0)||0;
     var setName=String(card._setName||card.setName||card.set&&card.set.name||"");
-    var reference=[code,local].filter(Boolean).join(" ");
+    var number=local+(total?"/"+total:"");
+    var reference=[code,number].filter(Boolean).join(" ");
     return [reference,setName].filter(Boolean).join(" · ");
+  }
+  function formatCardText(value){
+    return String(value==null?"":value).replace(/\{([^}]+)\}/g,"[$1]");
+  }
+  function energyCostHtml(cost){
+    if(!Array.isArray(cost)||!cost.length)return "";
+    return '<span class="tcg-energy-cost">'+cost.map(function(item){
+      return '<b title="'+esc(item)+'">'+esc(String(item).slice(0,2).toUpperCase())+'</b>';
+    }).join("")+'</span>';
+  }
+  function renderPokemonInfo(card){
+    var out=[];
+    var facts=[];
+    if(card.hp!=null)facts.push('<div><small>HP</small><strong>'+esc(card.hp)+'</strong></div>');
+    if(Array.isArray(card.types)&&card.types.length)facts.push('<div><small>Type</small><strong>'+esc(card.types.join(" / "))+'</strong></div>');
+    if(card.stage)facts.push('<div><small>Stage</small><strong>'+esc(card.stage.replace(/Stage(\d)/,"Stage $1"))+'</strong></div>');
+    if(card.evolveFrom)facts.push('<div><small>Evolves from</small><strong>'+esc(card.evolveFrom)+'</strong></div>');
+    if(facts.length)out.push('<div class="tcg-card-facts">'+facts.join("")+'</div>');
+
+    if(Array.isArray(card.abilities)&&card.abilities.length){
+      out.push('<section class="tcg-card-info-section"><h3>Abilities</h3>'+
+        card.abilities.map(function(ability){
+          return '<article class="tcg-card-effect"><div class="tcg-card-effect-head"><strong>'+esc(ability.name||"Ability")+'</strong><span>'+esc(ability.type||"Ability")+'</span></div>'+
+            (ability.effect?'<p>'+esc(formatCardText(ability.effect))+'</p>':"")+'</article>';
+        }).join("")+'</section>');
+    }
+
+    if(Array.isArray(card.attacks)&&card.attacks.length){
+      out.push('<section class="tcg-card-info-section"><h3>Attacks</h3>'+
+        card.attacks.map(function(attack){
+          return '<article class="tcg-card-effect"><div class="tcg-card-effect-head">'+energyCostHtml(attack.cost)+'<strong>'+esc(attack.name||"Attack")+'</strong>'+
+            (attack.damage!==undefined&&attack.damage!==null&&String(attack.damage)!==""?'<b class="tcg-attack-damage">'+esc(attack.damage)+'</b>':"")+'</div>'+
+            (attack.effect?'<p>'+esc(formatCardText(attack.effect))+'</p>':"")+'</article>';
+        }).join("")+'</section>');
+    }
+
+    var battle=[];
+    if(Array.isArray(card.weaknesses)&&card.weaknesses.length)battle.push('<div><small>Weakness</small><strong>'+esc(card.weaknesses.map(function(item){return item.type+(item.value?" "+item.value:"")}).join(", "))+'</strong></div>');
+    if(Array.isArray(card.resistances)&&card.resistances.length)battle.push('<div><small>Resistance</small><strong>'+esc(card.resistances.map(function(item){return item.type+(item.value?" "+item.value:"")}).join(", "))+'</strong></div>');
+    if(card.retreat!==undefined&&card.retreat!==null)battle.push('<div><small>Retreat</small><strong>'+esc(card.retreat)+'</strong></div>');
+    if(battle.length)out.push('<div class="tcg-card-facts compact">'+battle.join("")+'</div>');
+    return out.join("");
+  }
+  function renderTrainerEnergyInfo(card){
+    var out=[];
+    if(card.effect){
+      out.push('<section class="tcg-card-info-section"><h3>Card text</h3><article class="tcg-card-effect"><p>'+esc(formatCardText(card.effect))+'</p></article></section>');
+    }
+    if(card.description){
+      out.push('<section class="tcg-card-info-section"><h3>Description</h3><article class="tcg-card-effect"><p>'+esc(formatCardText(card.description))+'</p></article></section>');
+    }
+    return out.join("");
+  }
+  function renderCardExtraInfo(card){
+    var html=card.category==="Pokemon"?renderPokemonInfo(card):renderTrainerEnergyInfo(card);
+    var meta=[];
+    if(card.rarity)meta.push('<div><small>Rarity</small><strong>'+esc(card.rarity)+'</strong></div>');
+    if(card.illustrator)meta.push('<div><small>Illustrator</small><strong>'+esc(card.illustrator)+'</strong></div>');
+    if(card.regulationMark)meta.push('<div><small>Regulation</small><strong>'+esc(card.regulationMark)+'</strong></div>');
+    if(meta.length)html+='<div class="tcg-card-facts compact meta">'+meta.join("")+'</div>';
+    if(!html)html='<div class="tcg-card-info-empty">No additional card text is available for this printing.</div>';
+    return html;
   }
   function setMatchesCode(set,code){
     if(!set)return false;
@@ -332,9 +396,11 @@
       return;
     }
     target.innerHTML=cards.map(function(card){
+      var setYear=String(card._setReleaseDate||"").slice(0,4);
       return '<button type="button" class="tcg-search-result" data-tcg-card="'+esc(card.id)+'" aria-label="Preview '+esc(card.name)+'">'+
         cardImageHtml(card.image,card.name)+
-        '<span class="tcg-search-result-copy"><strong>'+esc(card.name)+'</strong><small>'+esc(cardReferenceText(card))+'</small></span>'+
+        '<span class="tcg-search-result-copy"><strong>'+esc(card.name)+'</strong><small>'+esc(cardReferenceText(card))+'</small>'+
+          (setYear?'<em>'+esc(setYear)+'</em>':"")+'</span>'+
         '<span class="tcg-search-preview-cue">View <b>›</b></span>'+
       '</button>';
     }).join("");
@@ -441,8 +507,14 @@
     }
   }
   function renderCardPreview(card){
+    var modal=$(".tcg-card-preview-modal");
+    if(modal)modal.classList.toggle("is-text-only",!card.image);
     var image=$("#tcgPreviewImage");
-    if(image)image.innerHTML=cardImageHtml(card.image,card.name,"high");
+    if(image){
+      image.innerHTML=card.image
+        ?cardImageHtml(card.image,card.name,"high")
+        :'<div class="tcg-preview-no-art"><strong>Artwork unavailable</strong><span>The card data is still shown below.</span></div>';
+    }
     if($("#tcgPreviewName"))$("#tcgPreviewName").textContent=card.name||"Card";
     if($("#tcgPreviewReference"))$("#tcgPreviewReference").textContent=cardReferenceText(card)||"Set information unavailable";
     var details=[];
@@ -451,6 +523,7 @@
     if(card.energyType)details.push(card.energyType+" Energy");
     if(card.regulationMark)details.push("Regulation "+card.regulationMark);
     if($("#tcgPreviewDetails"))$("#tcgPreviewDetails").textContent=details.join(" · ")||"";
+    if($("#tcgPreviewCardInfo"))$("#tcgPreviewCardInfo").innerHTML=renderCardExtraInfo(card);
     var legality=$("#tcgPreviewLegality");
     if(legality){
       if(card.legal&&card.legal.standard===true){
@@ -472,6 +545,8 @@
     if($("#tcgPreviewName"))$("#tcgPreviewName").textContent="Loading card…";
     if($("#tcgPreviewReference"))$("#tcgPreviewReference").textContent="";
     if($("#tcgPreviewDetails"))$("#tcgPreviewDetails").textContent="";
+    if($("#tcgPreviewCardInfo"))$("#tcgPreviewCardInfo").innerHTML="";
+    var modal=$(".tcg-card-preview-modal");if(modal)modal.classList.remove("is-text-only");
     if($("#tcgPreviewImage"))$("#tcgPreviewImage").innerHTML='<div class="tcg-preview-loading">Loading artwork…</div>';
     if($("#tcgPreviewAdd"))$("#tcgPreviewAdd").disabled=true;
     if(typeof dialog.showModal==="function"&&!dialog.open)dialog.showModal();
