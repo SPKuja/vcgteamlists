@@ -39,7 +39,7 @@ $rows = $pdo->query(
      WHERE u.email_verified_at IS NOT NULL'
 )->fetchAll();
 
-$gameCounts = ['champions' => 0, 'sv' => 0, 'swsh' => 0, 'custom' => 0];
+$gameCounts = ['champions' => 0, 'sv' => 0, 'swsh' => 0, 'go' => 0, 'custom' => 0];
 $pokemonCounts = [];
 $itemCounts = [];
 $abilityCounts = [];

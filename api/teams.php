@@ -55,7 +55,7 @@ $payload = $body['payload'] ?? null;
 
 if ($name === '') $name = 'Untitled team';
 if (mb_strlen($name) > 100) json_response(['error' => 'Team name is too long.'], 422);
-if (!in_array($game, ['champions', 'sv', 'swsh', 'custom'], true)) {
+if (!in_array($game, ['champions', 'sv', 'swsh', 'go', 'custom'], true)) {
     json_response(['error' => 'Unknown game preset.'], 422);
 }
 if (!is_array($payload)) json_response(['error' => 'Team data is invalid.'], 422);

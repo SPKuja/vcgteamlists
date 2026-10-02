@@ -1780,3 +1780,125 @@ main>*,
 @media(max-width:620px){
   .cloud-team-actions{justify-content:flex-start}
 }
+
+/* Pokémon GO builder */
+body[data-game="go"]{--accent:#168bd2;--accent-2:#52c878;--accent-rgb:22,139,210}
+.game-card.go,.new-team-game.go{background:linear-gradient(135deg,#147ec1,#4dc672)}
+.game-card.go:before{background:linear-gradient(120deg,rgba(8,31,52,.84) 0 43%,rgba(8,31,52,.12) 76%)}
+.go-wordmark span{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:38px;
+  padding:0 12px;
+  border-radius:999px;
+  background:rgba(255,255,255,.94);
+  color:#147fc3;
+  font-size:17px;
+  font-weight:950;
+  letter-spacing:-.04em;
+  box-shadow:0 5px 12px rgba(0,0,0,.16);
+}
+.new-team-game .go-wordmark span{font-size:15px;min-height:34px}
+
+.go-team-settings{
+  margin-top:16px;
+  padding:16px;
+  border:1px solid rgba(var(--accent-rgb),.16);
+  border-radius:18px;
+  background:linear-gradient(135deg,rgba(var(--accent-rgb),.08),rgba(82,200,120,.06));
+}
+.go-settings-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.go-settings-head h3{margin:0;font-size:17px;letter-spacing:-.025em}
+.go-team-settings>p{margin:10px 2px 0;color:var(--muted);font-size:9px;line-height:1.5}
+
+.go-pokemon-fields{margin-top:10px}
+.go-iv-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.go-iv-grid input{text-align:center;font-weight:800}
+.go-search-result strong{display:block}
+.go-search-result small{display:block;margin-top:2px;color:var(--muted);font-size:9px}
+
+.go-team-slot .slot-img{height:128px}
+.go-slot-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.go-slot-badges>span,.go-shadow-badge{
+  display:inline-flex;
+  align-items:center;
+  min-height:22px;
+  padding:3px 7px;
+  border-radius:999px;
+  background:rgba(var(--accent-rgb),.09);
+  color:var(--accent);
+  font-size:8px;
+  font-weight:900;
+}
+.go-shadow-badge{background:#4b405d;color:#fff}
+.go-slot-info{grid-template-columns:1fr 1fr;margin-top:9px}
+.go-slot-info .go-charge-row{grid-column:1/-1}
+.go-slot-info span{white-space:normal!important;line-height:1.35}
+
+.go-paper-header{background:linear-gradient(135deg,rgba(22,139,210,.10),rgba(82,200,120,.07))}
+.go-paper-team{display:grid;gap:12px;margin-top:13px}
+.go-paper-mon{
+  display:grid;
+  grid-template-columns:118px minmax(0,1fr);
+  overflow:hidden;
+  border:1px solid #dfe3e9;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 3px 10px rgba(31,34,48,.04);
+}
+.go-paper-art{display:grid;place-items:center;background:radial-gradient(circle,rgba(22,139,210,.12),#f7fafb 68%)}
+.go-paper-art img{width:108px;height:108px;object-fit:contain;filter:drop-shadow(0 7px 8px rgba(31,34,48,.10))}
+.go-paper-body{padding:12px}
+.go-paper-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.go-paper-top h3{margin:0;font-size:16px;letter-spacing:-.025em}
+.go-paper-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}
+.go-paper-stats>div{padding:7px;border-radius:8px;background:#f5f7fa}
+.go-paper-stats small{display:block;font-size:6px;color:#777b86;text-transform:uppercase;font-weight:850}
+.go-paper-stats strong{display:block;margin-top:2px;font-size:9px}
+.go-paper-moves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}
+.go-paper-move{min-width:0;padding:7px 8px;border:1px solid #e1e4ea;border-radius:8px;background:#fff}
+.go-paper-move small{display:block;font-size:5px;color:#7a7d88;font-weight:850}
+.go-paper-move strong{display:block;margin-top:2px;font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.go-data-credit{margin:10px 2px 0;color:#898c96;font-size:7px;text-align:right}
+
+.go-cloud-mark span{
+  display:grid;
+  place-items:center;
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  background:linear-gradient(135deg,#168bd2,#52c878);
+  color:#fff;
+  font-size:11px;
+  font-weight:950;
+}
+
+@media(max-width:699px){
+  .go-iv-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .go-paper-mon{grid-template-columns:92px minmax(0,1fr)}
+  .go-paper-art img{width:86px;height:86px}
+  .go-paper-stats{grid-template-columns:1fr 1fr 1.3fr}
+  .go-paper-moves{grid-template-columns:1fr}
+}
+
+@media print{
+  body[data-game="go"]{--accent:#168bd2}
+  .go-print-team{display:grid;grid-template-columns:1fr;gap:4mm;margin-top:4mm}
+  .go-print-mon{
+    display:grid;
+    grid-template-columns:35mm 1fr;
+    min-height:42mm;
+    border:.7pt solid #ccd4dc;
+    border-radius:3mm;
+    overflow:hidden;
+    break-inside:avoid;
+  }
+  .go-print-art{display:grid;place-items:center;background:#f4f8fb}
+  .go-print-art img{width:32mm;height:32mm;object-fit:contain}
+  .go-print-copy{padding:5mm}
+  .go-print-copy h2{margin:0;font-size:14pt}
+  .go-print-copy p{margin:1.5mm 0 3mm;color:#555;font-size:8pt}
+  .go-print-copy ul{display:grid;grid-template-columns:repeat(3,1fr);gap:2mm;margin:0;padding:0;list-style:none}
+  .go-print-copy li{padding:2mm;border:.5pt solid #ddd;border-radius:1.5mm;font-size:8pt;font-weight:700}
+}

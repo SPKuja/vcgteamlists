@@ -8,10 +8,10 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.9.0">
+  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.0">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
-  <script defer src="/assets/js/app.js?v=0.9.1"></script>
-  <script defer src="/assets/js/auth.js?v=0.6.0"></script>
+  <script defer src="/assets/js/app.js?v=1.0.0"></script>
+  <script defer src="/assets/js/auth.js?v=0.6.1"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -91,6 +91,22 @@
             </div>
           </button>
 
+          <button class="game-card go" data-select-game="go">
+            <div class="home-game-logos single generic go-wordmark" aria-hidden="true">
+              <span>Pokémon GO</span>
+            </div>
+            <div class="game-art" aria-hidden="true">
+              <img class="art-one" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/184.png" alt="">
+              <img class="art-two" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png" alt="">
+            </div>
+            <div class="game-copy">
+              <span class="game-kicker">GO Battle League</span>
+              <h3>Pokémon GO</h3>
+              <p>Three-Pokémon PvP teams with league, CP, IVs and GO move pools.</p>
+              <span class="choose-link">Build a GO team <span>→</span></span>
+            </div>
+          </button>
+
           <button class="game-card custom" data-select-game="custom">
             <div class="home-game-logos single generic" aria-hidden="true">
               <img src="/images/pokemon.svg" alt="">
@@ -131,10 +147,28 @@
             <label><span>Player ID</span><input id="playerId" inputmode="numeric" autocomplete="off" placeholder="Player ID"></label>
             <label><span>Year of birth</span><input id="yearOfBirth" inputmode="numeric" autocomplete="bday-year" maxlength="4" placeholder="YYYY"></label>
           </div>
+          <div class="go-team-settings" id="goTeamSettings" hidden>
+            <div class="go-settings-head">
+              <div><span class="eyebrow">GO Battle League</span><h3>League settings</h3></div>
+              <span class="experimental-badge">Beta</span>
+            </div>
+            <div class="details-grid">
+              <label><span>League</span>
+                <select id="goLeague">
+                  <option value="great">Great League</option>
+                  <option value="ultra">Ultra League</option>
+                  <option value="master">Master League</option>
+                  <option value="custom">Custom CP cap</option>
+                </select>
+              </label>
+              <label><span>CP cap</span><input id="goCpCap" type="number" inputmode="numeric" min="10" max="10000" value="1500"></label>
+            </div>
+            <p>Pokémon and PvP move data are loaded from PvPoke's open gamemaster data.</p>
+          </div>
         </section>
 
         <div class="section-heading compact team-heading">
-          <div><span class="eyebrow">Six slots</span><h2>Battle team</h2></div>
+          <div><span class="eyebrow" id="teamSlotEyebrow">Six slots</span><h2>Battle team</h2></div>
           <div class="team-heading-actions">
             <button class="button secondary showdown-import-button" id="openShowdownImport" type="button">Import Showdown</button>
             <span class="completion" id="completionCount">0 / 6 complete</span>
@@ -166,7 +200,7 @@
           </div>
         </div>
 
-        <div class="segmented" role="group" aria-label="Team sheet type">
+        <div class="segmented" id="sheetModeControl" role="group" aria-label="Team sheet type">
           <button class="is-selected" data-sheet-mode="full">Full / registration</button>
           <button data-sheet-mode="open">Open team sheet</button>
         </div>
@@ -532,6 +566,14 @@
           </div>
         </button>
 
+        <button class="new-team-game go" type="button" data-select-game="go">
+          <div class="new-team-game-logos single generic go-wordmark" aria-hidden="true"><span>Pokémon GO</span></div>
+          <div class="new-team-game-copy">
+            <strong>Pokémon GO</strong>
+            <span>3 Pokémon · CP · IVs · PvP moves</span>
+          </div>
+        </button>
+
         <button class="new-team-game custom" type="button" data-select-game="custom">
           <div class="new-team-game-logos single generic" aria-hidden="true">
             <img src="/images/pokemon.svg" alt="">
@@ -618,7 +660,7 @@
 
         <div class="form-section">
           <div class="form-section-title"><span>01</span><div><h3>Battle details</h3></div></div>
-          <div class="form-grid two">
+          <div class="form-grid two" id="standardBattleFields">
             <div class="autocomplete-field" data-resource="ability">
               <label for="abilityInput">Ability</label>
               <div class="autocomplete-control">
@@ -641,7 +683,7 @@
           <div id="gameSpecificFields"></div>
         </div>
 
-        <div class="form-section">
+        <div class="form-section" id="finalStatsSection">
           <div class="form-section-title"><span>02</span><div><h3>Final stats</h3></div></div>
           <div class="stat-grid" id="finalStats"></div>
         </div>
@@ -651,11 +693,11 @@
           <div class="stat-grid" id="statPoints"></div>
         </div>
 
-        <div class="form-section">
-          <div class="form-section-title"><span id="movesNumber">04</span><div><h3>Moves</h3></div></div>
+        <div class="form-section" id="movesSection">
+          <div class="form-section-title"><span id="movesNumber">04</span><div><h3 id="movesTitle">Moves</h3></div></div>
           <div class="move-grid">
             <div class="autocomplete-field" data-resource="move">
-              <label for="moveInput0">Move 1</label>
+              <label for="moveInput0" id="moveLabel0">Move 1</label>
               <div class="autocomplete-control">
                 <input id="moveInput0" class="move-input" data-move="0" autocomplete="off" placeholder="Search moves">
                 <button type="button" class="field-caret" data-open-suggestions="moveInput0" aria-label="Show moves">⌄</button>
@@ -663,7 +705,7 @@
               <div class="field-results" data-results-for="moveInput0" hidden></div>
             </div>
             <div class="autocomplete-field" data-resource="move">
-              <label for="moveInput1">Move 2</label>
+              <label for="moveInput1" id="moveLabel1">Move 2</label>
               <div class="autocomplete-control">
                 <input id="moveInput1" class="move-input" data-move="1" autocomplete="off" placeholder="Search moves">
                 <button type="button" class="field-caret" data-open-suggestions="moveInput1" aria-label="Show moves">⌄</button>
@@ -671,7 +713,7 @@
               <div class="field-results" data-results-for="moveInput1" hidden></div>
             </div>
             <div class="autocomplete-field" data-resource="move">
-              <label for="moveInput2">Move 3</label>
+              <label for="moveInput2" id="moveLabel2">Move 3</label>
               <div class="autocomplete-control">
                 <input id="moveInput2" class="move-input" data-move="2" autocomplete="off" placeholder="Search moves">
                 <button type="button" class="field-caret" data-open-suggestions="moveInput2" aria-label="Show moves">⌄</button>
@@ -679,7 +721,7 @@
               <div class="field-results" data-results-for="moveInput2" hidden></div>
             </div>
             <div class="autocomplete-field" data-resource="move">
-              <label for="moveInput3">Move 4</label>
+              <label for="moveInput3" id="moveLabel3">Move 4</label>
               <div class="autocomplete-control">
                 <input id="moveInput3" class="move-input" data-move="3" autocomplete="off" placeholder="Search moves">
                 <button type="button" class="field-caret" data-open-suggestions="moveInput3" aria-label="Show moves">⌄</button>

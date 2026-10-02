@@ -9,18 +9,22 @@
   var MOVE_META_CACHE_KEY="vcg-move-meta-v1";
   var ITEM_META_CACHE_KEY="vcg-item-meta-v1";
   var NATURE_META_CACHE_KEY="vcg-nature-meta-v1";
+  var GO_DATA_CACHE_KEY="vcg-go-data-v1";
+  var GO_POKEMON_URL="https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster/pokemon.json";
+  var GO_MOVES_URL="https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster/moves.json";
   var statKeys=["hp","attack","defense","specialAttack","specialDefense","speed"];
   var statLabels={hp:"HP",attack:"Atk",defense:"Def",specialAttack:"SpA",specialDefense:"SpD",speed:"Spe"};
   var gameConfig={
     champions:{name:"Pokémon Champions",subtitle:"Stat Alignment, Stat Points and final battle stats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",alignmentLabel:"Stat Alignment",statPoints:true,tera:false,gmax:false,showLevel:false},
     sv:{name:"Scarlet / Violet",subtitle:"Tera Type, nature/alignment, level and final stats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1008.png",alignmentLabel:"Nature",statPoints:false,tera:true,gmax:false,showLevel:true},
     swsh:{name:"Sword / Shield",subtitle:"Nature, level, final stats and Gigantamax capability.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/888.png",alignmentLabel:"Nature",statPoints:false,tera:false,gmax:true,showLevel:true},
+    go:{name:"Pokémon GO",subtitle:"Three-Pokémon PvP teams with league, CP, IVs and GO move pools.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/184.png",alignmentLabel:"",statPoints:false,tera:false,gmax:false,showLevel:false,go:true,teamSize:3},
     custom:{name:"Custom / Other",subtitle:"A flexible team sheet for custom or legacy formats.",art:"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png",alignmentLabel:"Nature / Alignment",statPoints:false,tera:false,gmax:false,showLevel:true}
   };
 
   var state={
     game:null,sheetMode:"full",editingIndex:null,activeBuild:false,dirty:false,
-    meta:{playerName:"",trainerName:"",playerId:"",yearOfBirth:""},
+    meta:{playerName:"",trainerName:"",playerId:"",yearOfBirth:"",goLeague:"great",goCpCap:"1500"},
     team:[null,null,null,null,null,null]
   };
   var pokemonList=[];
@@ -28,6 +32,7 @@
   var moveMetaCache=null;
   var itemMetaCache=null;
   var natureMetaCache=null;
+  var goData=null;
   var statsCache=null;
   var statsLoadedAt=0;
   var statsLoading=false;
@@ -61,10 +66,78 @@
   }
   function emptyStats(){return {hp:"",attack:"",defense:"",specialAttack:"",specialDefense:"",speed:""}}
   function blankMon(){
-    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",alignmentUp:"",alignmentDown:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),evs:null,ivs:null,moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""]};
+    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",alignmentUp:"",alignmentDown:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),evs:null,ivs:null,moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""],goSpeciesId:"",goDex:null,goCP:"",goLevel:"",goIVs:{attack:"",defense:"",hp:""},goShadow:false,goFastMoves:[],goChargedMoves:[]};
+  }
+
+  function teamSize(game){
+    return gameConfig[game||state.game]&&gameConfig[game||state.game].teamSize||6;
+  }
+
+  function normaliseTeamLength(team,game){
+    var size=teamSize(game);
+    var out=Array.isArray(team)?team.slice(0,size):[];
+    while(out.length<size)out.push(null);
+    return out;
   }
   function shouldAutoFocus(){
     return !window.matchMedia || window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  }
+
+  function goLeagueInfo(){
+    var league=state.meta.goLeague||"great";
+    if(league==="ultra")return {name:"Ultra League",cap:2500,key:"cp2500"};
+    if(league==="master")return {name:"Master League",cap:null,key:null};
+    if(league==="custom")return {name:"Custom League",cap:Number(state.meta.goCpCap)||1500,key:null};
+    return {name:"Great League",cap:1500,key:"cp1500"};
+  }
+
+  function configureGameUi(){
+    var isGo=state.game==="go";
+    var goSettings=$("#goTeamSettings");
+    if(goSettings)goSettings.hidden=!isGo;
+    var eyebrow=$("#teamSlotEyebrow");
+    if(eyebrow)eyebrow.textContent=isGo?"Three slots":"Six slots";
+    var showdownImport=$("#openShowdownImport");
+    if(showdownImport)showdownImport.hidden=isGo;
+    var sheetMode=$("#sheetModeControl");
+    if(sheetMode)sheetMode.hidden=isGo;
+    var showdownExport=$("#showdownExportButton");
+    if(showdownExport)showdownExport.hidden=isGo;
+    var previewTitle=$("#previewTitle");
+    if(previewTitle)previewTitle.textContent=isGo?"GO team preview":"Team sheet preview";
+    if(isGo)state.sheetMode="full";
+  }
+
+  async function ensureGoData(){
+    if(goData&&goData.pokemon&&goData.moves)return goData;
+    var results=await Promise.all([
+      fetch(GO_POKEMON_URL,{cache:"default"}),
+      fetch(GO_MOVES_URL,{cache:"default"})
+    ]);
+    if(!results[0].ok||!results[1].ok)throw new Error("Pokémon GO data is temporarily unavailable");
+    var payloads=await Promise.all([results[0].json(),results[1].json()]);
+    var pokemon=payloads[0]||[],moves=payloads[1]||[];
+    var moveById={},moveSlugMap={};
+    moves.forEach(function(move){
+      moveById[move.moveId]=move;
+      moveSlugMap[moveSlug(move.name||move.moveId)]=move;
+    });
+    goData={pokemon:pokemon.filter(function(mon){return mon&&mon.released!==false}),moves:moves,moveById:moveById,moveSlugMap:moveSlugMap};
+    return goData;
+  }
+
+  function goArtworkUrl(mon){
+    var dex=Number(mon&&mon.dex)||0;
+    return dex?"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/"+dex+".png":"";
+  }
+
+  function goMoveName(id){
+    if(goData&&goData.moveById&&goData.moveById[id])return goData.moveById[id].name||prettyName(String(id).toLowerCase().replace(/_/g,"-"));
+    return prettyName(String(id||"").toLowerCase().replace(/_/g,"-"));
+  }
+
+  function goMoveSlug(id){
+    return moveSlug(goMoveName(id));
   }
 
   function showToast(message){
@@ -93,13 +166,12 @@
         state.sheetMode=saved.sheetMode||"full";
         state.activeBuild=true;
         state.dirty=!!saved.dirty;
-        state.team=saved.team.slice(0,6);
-        while(state.team.length<6)state.team.push(null);
+        state.team=normaliseTeamLength(saved.team,saved.game);
       }
     }catch(err){console.warn("Could not restore team",err)}
   }
 
-  function blankTeam(){return [null,null,null,null,null,null]}
+  function blankTeam(game){return Array(teamSize(game)).fill(null)}
 
   function markDirty(){
     if(!state.activeBuild)return;
@@ -139,12 +211,14 @@
   }
 
   function resetBuild(){
+    var previousGame=state.game;
     state.game=null;
     state.sheetMode="full";
     state.editingIndex=null;
     state.activeBuild=false;
     state.dirty=false;
-    state.team=blankTeam();
+    state.team=blankTeam(previousGame);
+    configureGameUi();
     saveState(true);
     renderTeam();
     document.dispatchEvent(new CustomEvent("vcg:buildreset"));
@@ -171,10 +245,11 @@
     state.editingIndex=null;
     state.activeBuild=true;
     state.dirty=false;
-    state.team=blankTeam();
+    state.team=blankTeam(game);
     document.body.dataset.game=game;
     $("#builderTitle").textContent=gameConfig[game].name;
     $("#builderGameArt").style.backgroundImage="url('"+gameConfig[game].art+"')";
+    configureGameUi();
     populateMeta();
     saveState(true);
     renderTeam();
@@ -193,11 +268,11 @@
         state.activeBuild=true;
         state.dirty=false;
         state.meta=Object.assign(state.meta,saved.meta||{});
-        state.team=saved.team.slice(0,6);
-        while(state.team.length<6)state.team.push(null);
+        state.team=normaliseTeamLength(saved.team,game);
         document.body.dataset.game=game;
         $("#builderTitle").textContent=gameConfig[game].name;
         $("#builderGameArt").style.backgroundImage="url('"+gameConfig[game].art+"')";
+        configureGameUi();
         populateMeta();renderTeam();saveState(true);navigate("team");
         return;
       }
@@ -323,15 +398,17 @@
       '<div class="team-insights-grid">'+
         '<article class="insight-panel weakness-panel"><div class="insight-panel-title"><span class="insight-symbol">!</span><div><h3>Major weaknesses</h3><p>'+escapeHtml(lead)+'</p></div></div><div class="insight-types">'+weak.map(function(x){return chip(x,"weak")}).join("")+'</div></article>'+
         '<article class="insight-panel answer-panel"><div class="insight-panel-title"><span class="insight-symbol">✓</span><div><h3>Defensive answers</h3><p>Attack types your team resists or is immune to most often.</p></div></div><div class="insight-types">'+answers.map(function(x){return chip(x,"answer")}).join("")+'</div></article>'+
-      '</div><p class="insight-note">Type-based analysis only. Abilities, held items, moves and battle effects can change practical matchups.</p>';
+      '</div><p class="insight-note">'+(state.game==="go"?"Type-based overview only. PvP moves, shields, energy and battle timing can change practical matchups.":"Type-based analysis only. Abilities, held items, moves and battle effects can change practical matchups.")+'</p>';
   }
 
   function renderTeam(){
     var grid=$("#teamGrid");grid.innerHTML="";
     var complete=0;
+    var size=teamSize(state.game);
+    state.team=normaliseTeamLength(state.team,state.game);
     state.team.forEach(function(mon,index){
       var button=document.createElement("button");
-      button.className="team-slot"+(mon&&mon.name?"":" empty");
+      button.className="team-slot"+(mon&&mon.name?"":" empty")+(state.game==="go"?" go-team-slot":"");
       button.dataset.slot=index;
       if(!mon||!mon.name){
         button.innerHTML='<span class="slot-number">SLOT '+(index+1)+'</span><span class="add-orb">+</span><strong>Add Pokémon</strong><small>Choose a Pokémon for this slot</small>';
@@ -340,36 +417,58 @@
         var types=(mon.types||[]).map(function(t){
           return '<span class="type-pill type-'+moveTypeKey(t)+'">'+typeIconHtml(t,"slot-type-icon")+'<span>'+escapeHtml(t)+'</span></span>';
         }).join("");
-        var item='<span class="slot-info-value">'+(mon.itemImage?'<img class="slot-item-icon" src="'+escapeHtml(mon.itemImage)+'" alt="">':'')+escapeHtml(mon.item||"No item")+'</span>';
-        var traits=[];
-        if(mon.alignment)traits.push('<span class="slot-trait">'+escapeHtml(mon.alignment)+'</span>');
-        if(mon.gender){
-          var genderSymbol=mon.gender==="Male"?"♂":mon.gender==="Female"?"♀":"◇";
-          traits.push('<span class="slot-trait gender-'+mon.gender.toLowerCase()+'">'+genderSymbol+' '+escapeHtml(mon.gender)+'</span>');
+        if(state.game==="go"){
+          var ivs=mon.goIVs||{};
+          var cp=mon.goCP!==""&&mon.goCP!=null?escapeHtml(mon.goCP):"—";
+          var level=mon.goLevel!==""&&mon.goLevel!=null?escapeHtml(mon.goLevel):"—";
+          var fast=(mon.moves||[])[0]||"—";
+          var charges=(mon.moves||[]).slice(1,3).filter(Boolean).join(" · ")||"—";
+          button.innerHTML=
+            '<span class="slot-number">SLOT '+(index+1)+'</span>'+
+            '<span class="slot-edit">Edit <span>›</span></span>'+
+            '<div class="slot-img">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
+            '<div class="slot-copy">'+
+              '<div class="slot-name">'+escapeHtml(mon.name)+'</div>'+
+              '<div class="slot-types">'+types+'</div>'+
+              '<div class="go-slot-badges"><span>CP '+cp+'</span><span>Lv. '+level+'</span>'+(mon.goShadow?'<span class="go-shadow-badge">Shadow</span>':'')+'</div>'+
+              '<div class="slot-info-grid go-slot-info">'+
+                '<div><small>IVs</small><span>'+escapeHtml(ivs.attack||0)+' / '+escapeHtml(ivs.defense||0)+' / '+escapeHtml(ivs.hp||0)+'</span></div>'+
+                '<div><small>Fast move</small><span>'+escapeHtml(fast)+'</span></div>'+
+                '<div class="go-charge-row"><small>Charged moves</small><span>'+escapeHtml(charges)+'</span></div>'+
+              '</div>'+
+            '</div>';
+        }else{
+          var item='<span class="slot-info-value">'+(mon.itemImage?'<img class="slot-item-icon" src="'+escapeHtml(mon.itemImage)+'" alt="">':'')+escapeHtml(mon.item||"No item")+'</span>';
+          var traits=[];
+          if(mon.alignment)traits.push('<span class="slot-trait">'+escapeHtml(mon.alignment)+'</span>');
+          if(mon.gender){
+            var genderSymbol=mon.gender==="Male"?"♂":mon.gender==="Female"?"♀":"◇";
+            traits.push('<span class="slot-trait gender-'+mon.gender.toLowerCase()+'">'+genderSymbol+' '+escapeHtml(mon.gender)+'</span>');
+          }
+          button.innerHTML=
+            '<span class="slot-number">SLOT '+(index+1)+'</span>'+
+            '<span class="slot-edit">Edit <span>›</span></span>'+
+            '<div class="slot-img">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
+            '<div class="slot-copy">'+
+              '<div class="slot-name">'+escapeHtml(displayMonName(mon))+'</div>'+
+              '<div class="slot-types">'+types+'</div>'+
+              (traits.length?'<div class="slot-traits">'+traits.join("")+'</div>':'')+
+              '<div class="slot-info-grid">'+
+                '<div><small>Ability</small><span>'+escapeHtml(mon.ability||"No ability")+'</span></div>'+
+                '<div><small>Held item</small>'+item+'</div>'+
+              '</div>'+
+            '</div>';
         }
-        button.innerHTML=
-          '<span class="slot-number">SLOT '+(index+1)+'</span>'+
-          '<span class="slot-edit">Edit <span>›</span></span>'+
-          '<div class="slot-img">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
-          '<div class="slot-copy">'+
-            '<div class="slot-name">'+escapeHtml(displayMonName(mon))+'</div>'+
-            '<div class="slot-types">'+types+'</div>'+
-            (traits.length?'<div class="slot-traits">'+traits.join("")+'</div>':'')+
-            '<div class="slot-info-grid">'+
-              '<div><small>Ability</small><span>'+escapeHtml(mon.ability||"No ability")+'</span></div>'+
-              '<div><small>Held item</small>'+item+'</div>'+
-            '</div>'+
-          '</div>';
       }
       grid.appendChild(button);
     });
     var completion=$("#completionCount");
-    completion.textContent=complete===6?"✓ 6 / 6 ready":complete+" / 6 complete";
-    completion.classList.toggle("is-complete",complete===6);
+    completion.textContent=complete===size?"✓ "+size+" / "+size+" ready":complete+" / "+size+" complete";
+    completion.classList.toggle("is-complete",complete===size);
 
     var completedMons=state.team.filter(function(mon){return mon&&mon.name});
     renderTeamInsights(completedMons);
-    if(completedMons.some(function(mon){return mon.item&&!mon.itemImage})){
+    if(state.game!=="go"&&completedMons.some(function(mon){return mon.item&&!mon.itemImage})){
       hydrateItemMeta(completedMons).then(function(changed){if(changed)renderTeam()});
     }
   }
@@ -384,6 +483,57 @@
 
   function renderGameFields(mon){
     var config=gameConfig[state.game],wrap=$("#gameSpecificFields");
+    var standard=$("#standardBattleFields"),finalSection=$("#finalStatsSection"),pointsSection=$("#statPointsSection");
+    var moveFields=$$("#movesSection .autocomplete-field");
+    if(state.game==="go"){
+      if(standard)standard.hidden=true;
+      if(finalSection)finalSection.hidden=true;
+      if(pointsSection)pointsSection.hidden=true;
+      $("#movesNumber").textContent="02";
+      $("#movesTitle").textContent="PvP moves";
+      ["Fast move","Charged move 1","Charged move 2",""].forEach(function(label,index){
+        var labelEl=$("#moveLabel"+index),field=moveFields[index],input=$("#moveInput"+index);
+        if(labelEl&&label)labelEl.textContent=label;
+        if(field)field.hidden=index===3;
+        if(input){
+          input.dataset.goMoveKind=index===0?"fast":"charged";
+          input.placeholder=index===0?"Search fast moves":"Search charged moves";
+        }
+      });
+      var ivs=mon.goIVs||{};
+      wrap.innerHTML=
+        '<div class="go-pokemon-fields">'+
+          '<div class="form-grid two">'+
+            '<label><span>CP</span><input id="goCpInput" type="number" inputmode="numeric" min="10" max="10000" placeholder="e.g. 1498"></label>'+
+            '<label><span>Pokémon level</span><input id="goLevelInput" type="number" inputmode="decimal" min="1" max="51" step="0.5" placeholder="e.g. 20.5"></label>'+
+          '</div>'+
+          '<div class="go-iv-grid">'+
+            '<label><span>Attack IV</span><input id="goIvAttack" type="number" inputmode="numeric" min="0" max="15"></label>'+
+            '<label><span>Defense IV</span><input id="goIvDefense" type="number" inputmode="numeric" min="0" max="15"></label>'+
+            '<label><span>HP IV</span><input id="goIvHp" type="number" inputmode="numeric" min="0" max="15"></label>'+
+          '</div>'+
+          '<label class="inline-toggle"><div><strong>Shadow Pokémon</strong><small>Uses the Shadow version where available.</small></div><input id="goShadowInput" type="checkbox"></label>'+
+        '</div>';
+      $("#goCpInput").value=mon.goCP||"";
+      $("#goLevelInput").value=mon.goLevel||"";
+      $("#goIvAttack").value=ivs.attack!==undefined?ivs.attack:"";
+      $("#goIvDefense").value=ivs.defense!==undefined?ivs.defense:"";
+      $("#goIvHp").value=ivs.hp!==undefined?ivs.hp:"";
+      $("#goShadowInput").checked=!!mon.goShadow;
+      return;
+    }
+
+    if(standard)standard.hidden=false;
+    if(finalSection)finalSection.hidden=false;
+    if(pointsSection){pointsSection.hidden=false;pointsSection.style.display=config.statPoints?"block":"none"}
+    $("#movesTitle").textContent="Moves";
+    ["Move 1","Move 2","Move 3","Move 4"].forEach(function(label,index){
+      var labelEl=$("#moveLabel"+index),field=moveFields[index],input=$("#moveInput"+index);
+      if(labelEl)labelEl.textContent=label;
+      if(field)field.hidden=false;
+      if(input){delete input.dataset.goMoveKind;input.placeholder="Search moves"}
+    });
+
     var alignmentPlaceholder=state.game==="champions"?"Search stat alignments":"Search natures";
     var html='<div class="form-grid two" style="margin-top:10px"><div class="autocomplete-field" data-resource="nature"><label for="alignmentInput">'+escapeHtml(config.alignmentLabel)+'</label><div class="autocomplete-control"><input id="alignmentInput" autocomplete="off" placeholder="'+escapeHtml(alignmentPlaceholder)+'"><button type="button" class="field-caret" data-open-suggestions="alignmentInput" aria-label="Show alignments">⌄</button></div><div class="field-results" data-results-for="alignmentInput" hidden></div></div>';
     if(config.tera)html+='<label><span>Tera Type</span><input id="teraInput" placeholder="e.g. Grass"></label>';
@@ -415,16 +565,17 @@
       $('[data-point-stat="'+key+'"]').value=(mon.statPoints&&mon.statPoints[key])||"";
     });
     setEditorPokemon(mon);
-    if(mon.name)hydrateExistingPokemon(mon);
+    if(mon.name){
+      if(state.game==="go")hydrateExistingGoPokemon(mon);
+      else hydrateExistingPokemon(mon);
+    }
     $("#removePokemonButton").style.visibility=mon.name?"visible":"hidden";
     $("#editorBackdrop").hidden=false;
     document.body.style.overflow="hidden";
-    Promise.all([
-      ensureResourceList("ability"),
-      ensureResourceList("item"),
-      ensureResourceList("nature"),
-      ensureResourceList("move")
-    ]).catch(function(){});
+    (state.game==="go"
+      ? ensureGoData()
+      : Promise.all([ensureResourceList("ability"),ensureResourceList("item"),ensureResourceList("nature"),ensureResourceList("move")])
+    ).catch(function(){});
     if(shouldAutoFocus())setTimeout(function(){$("#pokemonSearch").focus()},180);
   }
 
@@ -457,7 +608,17 @@
     $("#selectedPokemon").dataset.types=JSON.stringify(mon.types||[]);
     $("#selectedPokemon").dataset.abilities=JSON.stringify(mon.availableAbilities||[]);
     $("#selectedPokemon").dataset.moves=JSON.stringify(mon.availableMoves||[]);
-    renderFormSelector(mon);
+    $("#selectedPokemon").dataset.goSpeciesId=mon.goSpeciesId||"";
+    $("#selectedPokemon").dataset.goDex=mon.goDex||"";
+    $("#selectedPokemon").dataset.goFastMoves=JSON.stringify(mon.goFastMoves||[]);
+    $("#selectedPokemon").dataset.goChargedMoves=JSON.stringify(mon.goChargedMoves||[]);
+    $("#selectedPokemon").dataset.goShadow=mon.goShadow?"1":"";
+    if(state.game==="go"){
+      $("#formField").hidden=true;
+      $("#formSelect").innerHTML="";
+    }else{
+      renderFormSelector(mon);
+    }
   }
 
   async function ensureResourceList(resource){
@@ -485,10 +646,14 @@
     });
   }
 
-  function fieldPriority(resource){
+  function fieldPriority(resource,input){
     var raw="[]";
     if(resource==="ability")raw=$("#selectedPokemon").dataset.abilities||"[]";
-    if(resource==="move")raw=$("#selectedPokemon").dataset.moves||"[]";
+    if(resource==="move"){
+      if(state.game==="go"&&input&&input.dataset.goMoveKind==="fast")raw=$("#selectedPokemon").dataset.goFastMoves||"[]";
+      else if(state.game==="go"&&input&&input.dataset.goMoveKind==="charged")raw=$("#selectedPokemon").dataset.goChargedMoves||"[]";
+      else raw=$("#selectedPokemon").dataset.moves||"[]";
+    }
     try{return JSON.parse(raw)}catch(e){return []}
   }
 
@@ -505,8 +670,19 @@
     panel.hidden=false;
     panel.innerHTML='<div class="field-empty">Loading…</div>';
     try{
-      var list=await ensureResourceList(resource);
-      var priority=fieldPriority(resource);
+      var list;
+      if(state.game==="go"&&resource==="move"){
+        var data=await ensureGoData();
+        var kind=input.dataset.goMoveKind||"";
+        list=data.moves.filter(function(move){
+          if(kind==="fast")return Number(move.energyGain)>0;
+          if(kind==="charged")return Number(move.energy)>0;
+          return true;
+        }).map(function(move){return moveSlug(move.name||move.moveId)});
+      }else{
+        list=await ensureResourceList(resource);
+      }
+      var priority=fieldPriority(resource,input);
       var ranked=list.filter(function(name){return !q||name.indexOf(q)!==-1}).sort(function(a,b){
         var ap=priority.indexOf(a),bp=priority.indexOf(b);
         if(ap!==-1||bp!==-1){
@@ -532,6 +708,85 @@
     }
   }
 
+  async function searchGoPokemon(query){
+    var results=$("#pokemonResults");
+    var q=String(query||"").toLowerCase().trim();
+    if(q.length<2){results.hidden=true;return}
+    results.hidden=false;results.innerHTML='<button class="search-result" disabled>Searching GO data…</button>';
+    try{
+      var data=await ensureGoData();
+      var matches=data.pokemon.filter(function(mon){
+        return String(mon.speciesName||"").toLowerCase().indexOf(q)!==-1||String(mon.speciesId||"").toLowerCase().replace(/_/g," ").indexOf(q)!==-1;
+      }).sort(function(a,b){
+        var an=String(a.speciesName||"").toLowerCase(),bn=String(b.speciesName||"").toLowerCase();
+        return an.indexOf(q)-bn.indexOf(q)||an.length-bn.length;
+      }).slice(0,18);
+      if(!matches.length){results.innerHTML='<button class="search-result" disabled>No GO matches</button>';return}
+      results.innerHTML=matches.map(function(mon){
+        var shadow=(mon.tags||[]).indexOf("shadow")!==-1;
+        return '<button class="search-result go-search-result" data-pokemon="'+escapeHtml(mon.speciesId)+'"><strong>'+escapeHtml(mon.speciesName)+'</strong><small>'+escapeHtml((mon.types||[]).map(prettyName).join(" / "))+(shadow?" · Shadow":"")+'</small></button>';
+      }).join("");
+    }catch(err){
+      results.innerHTML='<button class="search-result" disabled>GO data unavailable</button>';
+    }
+  }
+
+  async function chooseGoPokemon(speciesId){
+    $("#pokemonResults").hidden=true;
+    try{
+      var data=await ensureGoData();
+      var entry=data.pokemon.filter(function(mon){return mon.speciesId===speciesId})[0];
+      if(!entry)throw new Error("GO Pokémon not found");
+      var shadow=(entry.tags||[]).indexOf("shadow")!==-1;
+      var name=entry.speciesName||prettyName(speciesId.replace(/_/g,"-"));
+      var league=goLeagueInfo();
+      var defaults=league.key&&entry.defaultIVs&&entry.defaultIVs[league.key]?entry.defaultIVs[league.key]:null;
+      var mon=blankMon();
+      mon.speciesSlug=String(entry.dex||"");
+      mon.slug=speciesId;
+      mon.name=name;
+      mon.form="Standard";
+      mon.image=goArtworkUrl(entry);
+      mon.types=(entry.types||[]).map(prettyName);
+      mon.goSpeciesId=speciesId;
+      mon.goDex=entry.dex||null;
+      mon.goShadow=shadow;
+      mon.goFastMoves=(entry.fastMoves||[]).map(goMoveSlug);
+      mon.goChargedMoves=(entry.chargedMoves||[]).map(goMoveSlug);
+      mon.availableMoves=mon.goFastMoves.concat(mon.goChargedMoves);
+      if(defaults){
+        mon.goLevel=defaults[0];
+        mon.goIVs={attack:defaults[1],defense:defaults[2],hp:defaults[3]};
+      }
+      setEditorPokemon(mon);
+      $("#pokemonSearch").value=name;
+      renderGameFields(mon);
+      $("#moveInput0").value=entry.fastMoves&&entry.fastMoves[0]?goMoveName(entry.fastMoves[0]):"";
+      $("#moveInput1").value=entry.chargedMoves&&entry.chargedMoves[0]?goMoveName(entry.chargedMoves[0]):"";
+      $("#moveInput2").value=entry.chargedMoves&&entry.chargedMoves[1]?goMoveName(entry.chargedMoves[1]):"";
+    }catch(err){
+      console.error("Could not load GO Pokémon",err);
+      showToast("Could not load Pokémon GO data");
+    }
+  }
+
+  async function hydrateExistingGoPokemon(mon){
+    if(!mon||!mon.goSpeciesId)return;
+    try{
+      var data=await ensureGoData();
+      var entry=data.pokemon.filter(function(item){return item.speciesId===mon.goSpeciesId})[0];
+      if(!entry)return;
+      mon.goDex=entry.dex||mon.goDex;
+      mon.types=(entry.types||[]).map(prettyName);
+      mon.image=mon.image||goArtworkUrl(entry);
+      mon.goFastMoves=(entry.fastMoves||[]).map(goMoveSlug);
+      mon.goChargedMoves=(entry.chargedMoves||[]).map(goMoveSlug);
+      mon.availableMoves=mon.goFastMoves.concat(mon.goChargedMoves);
+      setEditorPokemon(mon);
+      $("#pokemonSearch").value=mon.name||entry.speciesName||"";
+    }catch(e){}
+  }
+
   async function ensurePokemonList(){
     if(pokemonList.length)return pokemonList;
     try{
@@ -547,6 +802,7 @@
   }
 
   async function searchPokemon(query){
+    if(state.game==="go")return searchGoPokemon(query);
     var results=$("#pokemonResults");
     var q=query.toLowerCase().trim().replace(/\s+/g,"-");
     if(q.length<2){results.hidden=true;return}
@@ -564,6 +820,7 @@
   }
 
   async function choosePokemon(speciesSlug){
+    if(state.game==="go")return chooseGoPokemon(speciesSlug);
     $("#pokemonResults").hidden=true;
     var speciesName=prettyName(speciesSlug);
     $("#pokemonSearch").value=speciesName;
@@ -652,6 +909,34 @@
     try{mon.types=JSON.parse(selected.dataset.types||"[]")}catch(e){mon.types=[]}
     try{mon.availableAbilities=JSON.parse(selected.dataset.abilities||"[]")}catch(e){mon.availableAbilities=[]}
     try{mon.availableMoves=JSON.parse(selected.dataset.moves||"[]")}catch(e){mon.availableMoves=[]}
+
+    if(state.game==="go"){
+      mon.goSpeciesId=selected.dataset.goSpeciesId||existing.goSpeciesId||mon.slug;
+      mon.goDex=Number(selected.dataset.goDex||existing.goDex)||null;
+      try{mon.goFastMoves=JSON.parse(selected.dataset.goFastMoves||"[]")}catch(e){mon.goFastMoves=[]}
+      try{mon.goChargedMoves=JSON.parse(selected.dataset.goChargedMoves||"[]")}catch(e){mon.goChargedMoves=[]}
+      mon.goShadow=!!($("#goShadowInput")&&$("#goShadowInput").checked);
+      mon.goCP=$("#goCpInput")?$("#goCpInput").value.trim():"";
+      mon.goLevel=$("#goLevelInput")?$("#goLevelInput").value.trim():"";
+      mon.goIVs={
+        attack:$("#goIvAttack")?$("#goIvAttack").value.trim():"",
+        defense:$("#goIvDefense")?$("#goIvDefense").value.trim():"",
+        hp:$("#goIvHp")?$("#goIvHp").value.trim():""
+      };
+      mon.moves=[
+        $("#moveInput0").value.trim(),
+        $("#moveInput1").value.trim(),
+        $("#moveInput2").value.trim(),
+        ""
+      ];
+      mon.moveTypes=mon.moves.map(function(move){
+        var meta=goData&&goData.moveSlugMap?goData.moveSlugMap[moveSlug(move)]:null;
+        return meta?prettyName(meta.type):"";
+      });
+      mon.moveClasses=["Fast","Charged","Charged",""];
+      return mon;
+    }
+
     mon.ability=$("#abilityInput").value.trim();
     mon.item=$("#itemInput").value.trim();
     mon.itemImage=existing.item===mon.item?(existing.itemImage||""):"";
@@ -688,6 +973,16 @@
       return;
     }
     if(!mon.name){showToast("Choose or enter a Pokémon first");return}
+    if(state.game==="go"){
+      var league=goLeagueInfo();
+      var cp=Number(mon.goCP)||0;
+      var ivs=mon.goIVs||{};
+      if(league.cap&&cp>league.cap){showToast("CP exceeds the "+league.name+" cap of "+league.cap);return}
+      if(["attack","defense","hp"].some(function(key){var value=Number(ivs[key]);return value<0||value>15})){
+        showToast("Pokémon GO IVs must be between 0 and 15");
+        return;
+      }
+    }
     state.team[state.editingIndex]=mon;
     markDirty();
     closeEditor();
@@ -711,11 +1006,23 @@
       if(state.meta[key]!==next)changed=true;
       state.meta[key]=next;
     });
+    if(state.game==="go"){
+      var league=$("#goLeague")?$("#goLeague").value:"great";
+      var cap=$("#goCpCap")?$("#goCpCap").value.trim():"1500";
+      if(state.meta.goLeague!==league||String(state.meta.goCpCap||"")!==cap)changed=true;
+      state.meta.goLeague=league;
+      state.meta.goCpCap=cap;
+    }
     if(changed&&trackDirty!==false)markDirty();
     else saveState(true);
   }
   function populateMeta(){
     ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(key){$("#"+key).value=state.meta[key]||""});
+    if($("#goLeague"))$("#goLeague").value=state.meta.goLeague||"great";
+    if($("#goCpCap")){
+      $("#goCpCap").value=state.meta.goCpCap||"1500";
+      $("#goCpCap").disabled=(state.meta.goLeague||"great")==="master";
+    }
   }
 
   function moveSlug(name){
@@ -956,7 +1263,52 @@
     }).join("");
   }
 
+  function renderGoPreview(){
+    syncMeta(false);
+    var league=goLeagueInfo();
+    var completed=state.team.filter(function(m){return m&&m.name});
+    var cards=completed.map(function(mon){
+      var ivs=mon.goIVs||{};
+      var moveHtml=(mon.moves||[]).slice(0,3).filter(Boolean).map(function(move,index){
+        return '<div class="go-paper-move"><small>'+(index===0?"FAST":"CHARGED")+'</small><strong>'+escapeHtml(move)+'</strong></div>';
+      }).join("");
+      return '<article class="go-paper-mon">'+
+        '<div class="go-paper-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
+        '<div class="go-paper-body">'+
+          '<div class="go-paper-top"><div><h3>'+escapeHtml(mon.name)+'</h3>'+monTypePills(mon,false)+'</div>'+(mon.goShadow?'<span class="go-shadow-badge">Shadow</span>':'')+'</div>'+
+          '<div class="go-paper-stats"><div><small>CP</small><strong>'+escapeHtml(mon.goCP||"—")+'</strong></div><div><small>Level</small><strong>'+escapeHtml(mon.goLevel||"—")+'</strong></div><div><small>IVs A/D/HP</small><strong>'+escapeHtml(ivs.attack||0)+' / '+escapeHtml(ivs.defense||0)+' / '+escapeHtml(ivs.hp||0)+'</strong></div></div>'+
+          '<div class="go-paper-moves">'+moveHtml+'</div>'+
+        '</div>'+
+      '</article>';
+    }).join("");
+    if(!cards)cards='<p style="color:#777;font-size:12px">Add Pokémon to your GO team to see the generated card.</p>';
+
+    $("#screenPreview").innerHTML=
+      '<header class="paper-header go-paper-header">'+
+        '<div class="paper-brand"><span>POKÉMON GO</span><h2>'+escapeHtml(league.name)+' Team</h2><p>'+(league.cap?"CP cap "+league.cap:"No CP cap")+' · 3 Pokémon</p></div>'+
+        '<div class="paper-meta"><strong>'+escapeHtml(state.meta.playerName||"Trainer")+'</strong>'+escapeHtml(state.meta.trainerName||"")+'</div>'+
+      '</header>'+
+      '<div class="go-paper-team">'+cards+'</div>'+
+      '<p class="go-data-credit">PvP species and move data sourced from PvPoke gamemaster.</p>';
+    renderGoPrint();
+  }
+
+  function renderGoPrint(){
+    var league=goLeagueInfo();
+    var completed=state.team.filter(function(m){return m&&m.name});
+    var cards=completed.map(function(mon){
+      var ivs=mon.goIVs||{};
+      return '<article class="go-print-mon">'+
+        '<div class="go-print-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
+        '<div class="go-print-copy"><h2>'+escapeHtml(mon.name)+'</h2><p>CP '+escapeHtml(mon.goCP||"—")+' · Lv. '+escapeHtml(mon.goLevel||"—")+' · IVs '+escapeHtml(ivs.attack||0)+'/'+escapeHtml(ivs.defense||0)+'/'+escapeHtml(ivs.hp||0)+(mon.goShadow?" · Shadow":"")+'</p>'+
+        '<ul>'+(mon.moves||[]).slice(0,3).filter(Boolean).map(function(move){return '<li>'+escapeHtml(move)+'</li>'}).join("")+'</ul></div>'+
+      '</article>';
+    }).join("");
+    $("#printRoot").innerHTML='<section class="print-sheet go-print-sheet"><header class="print-head"><div><span>POKÉMON GO</span><h1>'+escapeHtml(league.name)+' Team</h1><p>'+(league.cap?"CP cap "+league.cap:"No CP cap")+'</p></div><div class="print-meta"><strong>'+escapeHtml(state.meta.playerName||"Trainer")+'</strong>'+escapeHtml(state.meta.trainerName||"")+'</div></header><div class="go-print-team">'+cards+'</div><div class="print-foot">Generated with VGC Team Lists · Pokémon GO data via PvPoke gamemaster.</div></section>';
+  }
+
   function renderPreview(skipHydrate){
+    if(state.game==="go"){renderGoPreview();return}
     syncMeta(false);
     var mode=state.sheetMode;
     $("[data-sheet-mode='full']").classList.toggle("is-selected",mode==="full");
@@ -1007,6 +1359,7 @@
   }
 
   function renderPrint(){
+    if(state.game==="go"){renderGoPrint();return}
     var mode=state.sheetMode;
     var completed=state.team.filter(function(m){return m&&m.name});
     var mons=completed.map(function(mon){
@@ -1060,7 +1413,7 @@
 
   async function printTeamSheet(){
     var completed=state.team.filter(function(m){return m&&m.name});
-    if(completed.length){
+    if(completed.length&&state.game!=="go"){
       await Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed),hydrateNatureMeta(completed)]);
     }
     renderPrint();
@@ -1242,7 +1595,7 @@
     if(onProgress)onProgress("Preparing team…");
     try{
       await withTimeout(
-        Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed),hydrateNatureMeta(completed)]),
+        state.game==="go"?Promise.resolve([]):Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed),hydrateNatureMeta(completed)]),
         9000,
         "Team data took too long to prepare"
       );
@@ -1321,7 +1674,7 @@
 
   function clearTeam(){
     if(!confirm("Clear all six Pokémon from this team?"))return;
-    state.team=blankTeam();markDirty();renderTeam();showToast("Team cleared");
+    state.team=blankTeam(state.game);markDirty();renderTeam();showToast("Team cleared");
   }
 
   function formatStatNumber(value){
@@ -1329,7 +1682,7 @@
   }
 
   function statsGameName(game){
-    return {champions:"Pokémon Champions",sv:"Scarlet / Violet",swsh:"Sword / Shield",custom:"Custom / Other"}[game]||prettyName(game);
+    return {champions:"Pokémon Champions",sv:"Scarlet / Violet",swsh:"Sword / Shield",go:"Pokémon GO",custom:"Custom / Other"}[game]||prettyName(game);
   }
 
   function itemSpriteCandidates(name,savedUrl){
@@ -1781,6 +2134,16 @@
     });
     $("#saveLocalButton").addEventListener("click",saveLocalBuild);
     $("#clearTeamButton").addEventListener("click",clearTeam);
+    $("#goLeague").addEventListener("change",function(){
+      var value=this.value;
+      if(value==="great")$("#goCpCap").value="1500";
+      if(value==="ultra")$("#goCpCap").value="2500";
+      if(value==="master")$("#goCpCap").value="";
+      $("#goCpCap").disabled=value==="master";
+      syncMeta(true);
+      renderTeam();
+    });
+    $("#goCpCap").addEventListener("input",function(){syncMeta(true)});
     ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(id){$("#"+id).addEventListener("change",function(){syncMeta(true)})});
     $$("[data-sheet-mode]").forEach(function(b){b.addEventListener("click",function(){if(state.sheetMode!==b.dataset.sheetMode){state.sheetMode=b.dataset.sheetMode;markDirty()}renderPreview()})});
     $("#printButton").addEventListener("click",function(){printTeamSheet()});
@@ -1819,12 +2182,12 @@
       state.sheetMode=payload.sheetMode==="open"?"open":"full";
       state.activeBuild=true;
       state.dirty=false;
-      state.meta=Object.assign({playerName:"",trainerName:"",playerId:"",yearOfBirth:""},payload.meta||{});
-      state.team=payload.team.slice(0,6);
-      while(state.team.length<6)state.team.push(null);
+      state.meta=Object.assign({playerName:"",trainerName:"",playerId:"",yearOfBirth:"",goLeague:"great",goCpCap:"1500"},payload.meta||{});
+      state.team=normaliseTeamLength(payload.team,payload.game);
       document.body.dataset.game=state.game;
       $("#builderTitle").textContent=gameConfig[state.game].name;
       $("#builderGameArt").style.backgroundImage="url('"+gameConfig[state.game].art+"')";
+      configureGameUi();
       populateMeta();renderTeam();saveState(true);navigate("team",{skipBuildGuard:true});
       return true;
     },
@@ -1856,7 +2219,7 @@
       state.editingIndex=null;
       state.activeBuild=false;
       state.dirty=false;
-      state.meta={playerName:"",trainerName:"",playerId:"",yearOfBirth:""};
+      state.meta={playerName:"",trainerName:"",playerId:"",yearOfBirth:"",goLeague:"great",goCpCap:"1500"};
       state.team=blankTeam();
       populateMeta();
       renderTeam();
@@ -1866,6 +2229,7 @@
 
   function init(){
     loadState();renderStatInputs();populateMeta();wireEvents();
+    configureGameUi();
     if(state.activeBuild&&state.game&&gameConfig[state.game]){
       document.body.dataset.game=state.game;
       $("#builderTitle").textContent=gameConfig[state.game].name;
