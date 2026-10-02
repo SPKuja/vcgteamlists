@@ -1623,3 +1623,70 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .legal-page{padding:21px;border-radius:20px}
   .legal-page p{font-size:12px}
 }
+
+/* Mobile viewport polish: prevent page-level horizontal drift */
+html,body{
+  width:100%;
+  max-width:100%;
+  overflow-x:clip;
+}
+.app-shell,main,.view{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
+main>*,
+.profile-layout>*,
+.team-grid>*,
+.stats-grid>*,
+.details-grid>*{
+  min-width:0;
+  max-width:100%;
+}
+.builder-hero,
+.preview-head,
+.section-heading,
+.team-heading,
+.team-heading-actions,
+.profile-page-shell,
+.profile-main-card,
+.profile-summary-card,
+.team-insights,
+.stats-panel{
+  min-width:0;
+  max-width:100%;
+}
+.builder-hero{overflow:hidden}
+.builder-hero:after{right:-12px}
+
+@media(max-width:699px){
+  main{
+    padding-left:max(14px,env(safe-area-inset-left));
+    padding-right:max(14px,env(safe-area-inset-right));
+  }
+  .app-bar{
+    width:100%;
+    max-width:100%;
+    padding-left:max(14px,env(safe-area-inset-left));
+    padding-right:max(14px,env(safe-area-inset-right));
+  }
+  .details-card,
+  .team-slot,
+  .team-insights,
+  .profile-summary-card,
+  .profile-main-card,
+  .account-page-card,
+  .stats-panel{
+    width:100%;
+    max-width:100%;
+  }
+  .team-heading-actions{
+    max-width:100%;
+  }
+  .showdown-dialog,
+  .delete-account-dialog,
+  .save-team-dialog,
+  .new-team-dialog{
+    max-width:100vw;
+  }
+}
