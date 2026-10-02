@@ -286,13 +286,13 @@
           :"No card found for "+reference.code+" "+reference.localId+".");
         return;
       }
-      var url=API+"/cards?name="+encodeURIComponent(q)+"&pagination:page=1&pagination:itemsPerPage=24";
+      var url=API+"/cards?name="+encodeURIComponent(q)+"&sort:field=releaseDate&sort:order=DESC&pagination:page=1&pagination:itemsPerPage=24";
       var response=await fetch(url,{signal:searchAbort.signal,cache:"default"});
       if(!response.ok)throw new Error("Card search failed");
       cards=await response.json();
       cards=Array.isArray(cards)?cards:[];
       renderSearchResults(cards);
-      setStatus(cards.length?"Showing "+cards.length+" matching printing"+(cards.length===1?"":"s")+".":"No matching cards found.");
+      setStatus(cards.length?"Showing "+cards.length+" matching printing"+(cards.length===1?"":"s")+" — newest first.":"No matching cards found.");
     }catch(err){
       if(err&&err.name==="AbortError")return;
       setStatus("Card search is temporarily unavailable.");
