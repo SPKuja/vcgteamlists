@@ -103,6 +103,21 @@ $pdo->exec(
 );
 
 $pdo->exec(
+"CREATE TABLE IF NOT EXISTS decks (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    format VARCHAR(32) NOT NULL DEFAULT 'standard',
+    payload LONGTEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_decks_user_updated (user_id, updated_at),
+    CONSTRAINT fk_decks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
+$pdo->exec(
 "CREATE TABLE IF NOT EXISTS team_shares (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     team_id BIGINT UNSIGNED NOT NULL,

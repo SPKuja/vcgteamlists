@@ -26,6 +26,7 @@ jobs:
           test -f assets/js/app.js
           test -f assets/js/tcg.js
           test -f assets/js/shared.js
+          test -f api/decks.php
           test -f shared/index.html
           node --check assets/js/app.js
           node --check assets/js/auth.js
