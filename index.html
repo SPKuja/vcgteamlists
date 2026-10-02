@@ -8,11 +8,11 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.9">
+  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.10">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
   <script defer src="/assets/js/app.js?v=1.0.6"></script>
-  <script defer src="/assets/js/auth.js?v=0.6.3"></script>
-  <script defer src="/assets/js/tcg.js?v=0.2.2"></script>
+  <script defer src="/assets/js/auth.js?v=0.7.0"></script>
+  <script defer src="/assets/js/tcg.js?v=0.3.0"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -109,8 +109,8 @@
           </button>
 
           <button class="game-card tcg" data-select-deck>
-            <div class="home-game-logos single generic tcg-wordmark" aria-hidden="true">
-              <span>Pokémon TCG</span>
+            <div class="home-game-logos single tcg-logo" aria-hidden="true">
+              <img src="/images/pokemon_tcg.webp" alt="">
             </div>
             <div class="tcg-card-fan" aria-hidden="true">
               <span></span><span></span><span></span>
@@ -150,9 +150,15 @@
             <h1 id="tcgTitle">Deck Builder</h1>
             <p>Build a tournament deck, keep the counts honest, and turn it into a clean deck list.</p>
           </div>
-          <div class="tcg-total-card" aria-live="polite">
-            <strong id="tcgDeckTotal">0</strong>
-            <span>/ 60 cards</span>
+          <div class="tcg-head-actions">
+            <div class="tcg-total-card" aria-live="polite">
+              <strong id="tcgDeckTotal">0</strong>
+              <span>/ 60 cards</span>
+            </div>
+            <div class="tcg-head-buttons">
+              <button class="button secondary" id="saveDeckCloudButton" type="button" hidden>Save Deck</button>
+              <button class="button primary" id="tcgDeckListPreviewButton" type="button">Preview deck list</button>
+            </div>
           </div>
         </div>
 
@@ -285,14 +291,14 @@
         <div class="teams-page-head">
           <div>
             <span class="eyebrow">Cloud library</span>
-            <h1 id="teamsTitle">My Teams</h1>
+            <h1 id="teamsTitle">My Builds</h1>
           </div>
-          <button class="button primary" type="button" id="openNewTeamDialog">Build a new team</button>
+          <button class="button primary" type="button" id="openNewTeamDialog">New build</button>
         </div>
 
         <div id="teamsGuest" class="teams-guest-card" hidden>
           <div class="teams-guest-icon" aria-hidden="true">☁</div>
-          <h2>Save teams to your account</h2>
+          <h2>Save builds to your account</h2>
           <p>Sign in to keep your builds together and access them on your other devices.</p>
           <button class="button primary" id="teamsSignInButton" type="button">Sign in</button>
         </div>
@@ -301,9 +307,9 @@
           <div class="teams-library-head">
             <div>
               <span class="eyebrow">Saved builds</span>
-              <h2>Your teams</h2>
+              <h2>Your teams &amp; decks</h2>
             </div>
-            <span class="completion" id="savedTeamCount">0 teams</span>
+            <span class="completion" id="savedTeamCount">0 builds</span>
           </div>
           <div class="account-message team-page-message" id="teamPageMessage" role="status" aria-live="polite"></div>
           <div class="cloud-team-list teams-library" id="cloudTeamList"></div>
@@ -468,7 +474,7 @@
                   <button class="text-button account-link" id="removeAvatarButton" type="button">Use Gravatar</button>
                   <input id="avatarInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
                 </div>
-                <button class="button secondary account-teams-button" id="manageTeamsButton" type="button">Manage My Teams</button>
+                <button class="button secondary account-teams-button" id="manageTeamsButton" type="button">Manage My Builds</button>
                 <button class="text-button profile-signout" id="logoutButton" type="button">Sign out</button>
               </aside>
 
@@ -570,11 +576,32 @@
     <nav class="bottom-nav" aria-label="Main navigation">
       <button class="is-active" data-nav="home"><span>⌂</span><small>Home</small></button>
       <button data-nav="team"><span>◫</span><small>Team</small></button>
-      <button data-nav="teams"><span>☁</span><small>My Teams</small></button>
+      <button data-nav="teams"><span>☁</span><small>My Builds</small></button>
       <button data-nav="stats"><span>⌁</span><small>Stats</small></button>
       <button data-nav="preview"><span>▤</span><small>Preview</small></button>
     </nav>
   </div>
+
+  <dialog class="tcg-deck-list-dialog" id="tcgDeckListDialog" aria-labelledby="tcgListDeckName">
+    <div class="tcg-deck-list-modal">
+      <header class="tcg-deck-list-head">
+        <div>
+          <span class="eyebrow">Tournament deck list preview</span>
+          <h2 id="tcgListDeckName">Untitled deck</h2>
+        </div>
+        <button class="icon-button" id="tcgDeckListClose" type="button" aria-label="Close deck list preview">×</button>
+      </header>
+      <div class="tcg-list-player">
+        <div><small>Player</small><strong id="tcgListPlayer">—</strong></div>
+        <div><small>Player ID</small><strong id="tcgListPlayerId">—</strong></div>
+        <div><small>Format</small><strong id="tcgListFormat">Standard</strong></div>
+        <div><small>Total</small><strong id="tcgListTotal">0 / 60</strong></div>
+      </div>
+      <div class="tcg-list-preview-groups" id="tcgListGroups"></div>
+      <div class="tcg-list-preview-note">This is the first-pass tournament list view. Printable/PDF formatting will be built from this same saved deck data.</div>
+      <div class="tcg-preview-actions"><button class="button primary" id="tcgDeckListDone" type="button">Done</button></div>
+    </div>
+  </dialog>
 
   <dialog class="tcg-card-preview-dialog" id="tcgCardPreviewDialog" aria-labelledby="tcgPreviewName">
     <div class="tcg-card-preview-modal">
@@ -667,7 +694,7 @@
         </button>
 
         <button class="new-team-game tcg" type="button" data-select-deck>
-          <div class="new-team-game-logos single generic tcg-wordmark" aria-hidden="true"><span>Pokémon TCG</span></div>
+          <div class="new-team-game-logos single tcg-logo" aria-hidden="true"><img src="/images/pokemon_tcg.webp" alt=""></div>
           <div class="new-team-game-copy">
             <strong>Pokémon TCG</strong>
             <span>60 cards · Deck list · Legality checks</span>
@@ -685,6 +712,28 @@
         </button>
       </div>
     </div>
+  </dialog>
+
+  <dialog class="save-team-dialog" id="saveDeckDialog" aria-labelledby="saveDeckDialogTitle">
+    <form class="save-team-modal" id="saveDeckForm">
+      <header class="save-team-modal-head">
+        <div>
+          <span class="eyebrow" id="saveDeckDialogEyebrow">Save deck</span>
+          <h2 id="saveDeckDialogTitle">Name your deck</h2>
+        </div>
+        <button class="icon-button" id="closeSaveDeckDialog" type="button" aria-label="Close save deck dialog">×</button>
+      </header>
+      <label class="save-team-name-field">
+        <span>Deck name</span>
+        <input id="saveDeckName" maxlength="100" autocomplete="off" required>
+      </label>
+      <p class="field-hint">Saved decks stay linked to your account and retain the set code, collector number and quantities needed for a tournament deck list.</p>
+      <div class="save-team-actions">
+        <button class="button secondary" id="cancelSaveDeck" type="button">Cancel</button>
+        <button class="button primary" id="saveDeckSubmit" type="submit">Save Deck</button>
+      </div>
+      <div class="account-message" id="saveDeckMessage" role="status" aria-live="polite"></div>
+    </form>
   </dialog>
 
   <dialog class="save-team-dialog" id="saveTeamDialog" aria-labelledby="saveTeamDialogTitle">

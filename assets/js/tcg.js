@@ -10,6 +10,7 @@
   var setCodeCache={};
   var previewCard=null;
   var previewScrollY=0;
+  var accountUser=null;
 
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
@@ -73,6 +74,46 @@
   function save(){
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}catch(e){}
   }
+  function emit(name,detail){
+    document.dispatchEvent(new CustomEvent(name,{detail:detail||{}}));
+  }
+  function exportDeck(player){
+    var person=player||accountUser||{};
+    return {
+      schemaVersion:1,
+      kind:"tcg",
+      format:"standard",
+      deckName:state.name||"",
+      player:{
+        playerName:String(person.playerName||""),
+        playerId:String(person.playerId||""),
+        yearOfBirth:person.yearOfBirth==null?null:Number(person.yearOfBirth)
+      },
+      cards:state.cards.map(function(card){return Object.assign({},card)}),
+      totals:{
+        total:total(),
+        pokemon:categoryCount("Pokemon"),
+        trainer:categoryCount("Trainer"),
+        energy:categoryCount("Energy")
+      }
+    };
+  }
+  function importDeck(payload,name){
+    if(!payload||!Array.isArray(payload.cards))return false;
+    state.name=String(name||payload.deckName||"");
+    state.cards=payload.cards.map(normaliseCard).filter(function(card){return card.id&&card.qty>0});
+    save();
+    var input=$("#tcgDeckName");if(input)input.value=state.name;
+    renderDeck();
+    if(window.VCGApp&&window.VCGApp.navigate)window.VCGApp.navigate("deck");
+    return true;
+  }
+  function setDeckName(name){
+    state.name=String(name||"");
+    var input=$("#tcgDeckName");if(input)input.value=state.name;
+    save();
+  }
+  function markDirty(){emit("vcg:deckdirty")}
   function total(){
     return state.cards.reduce(function(sum,card){return sum+(Number(card.qty)||0)},0);
   }
@@ -530,6 +571,7 @@
         state.cards.push(normalised);
       }
       renderDeck();
+      markDirty();
       setStatus(amount+" × "+(full.name||"Card")+" added to deck.");
     }catch(err){
       setStatus("Could not add that card. Try again.");
@@ -665,10 +707,39 @@
     card.qty=Math.max(0,Math.min(60,(Number(card.qty)||0)+delta));
     if(card.qty===0)state.cards=state.cards.filter(function(item){return item.id!==id});
     renderDeck();
+    markDirty();
   }
   function removeCard(id){
     state.cards=state.cards.filter(function(card){return card.id!==id});
     renderDeck();
+    markDirty();
+  }
+  function tournamentGroupHtml(category,label){
+    var cards=categoryCards(category);
+    var qty=cards.reduce(function(sum,card){return sum+(Number(card.qty)||0)},0);
+    return '<section class="tcg-list-preview-group"><h3>'+esc(label)+' <span>'+qty+'</span></h3>'+
+      (cards.length?cards.map(function(card){
+        var ref=[String(card.setCode||""),String(card.localId||"")].filter(Boolean).join(" ");
+        return '<div class="tcg-list-preview-row"><strong>'+esc(card.qty)+'×</strong><span>'+esc(card.name)+'</span><small>'+esc(ref||card.setName||"—")+'</small></div>';
+      }).join(""):'<div class="tcg-list-preview-empty">No '+esc(label.toLowerCase())+'.</div>')+
+    '</section>';
+  }
+  function openDeckListPreview(){
+    var dialog=$("#tcgDeckListDialog");if(!dialog)return;
+    var payload=exportDeck(accountUser),player=payload.player||{};
+    $("#tcgListDeckName").textContent=state.name||"Untitled deck";
+    $("#tcgListPlayer").textContent=player.playerName||"Player name not set";
+    $("#tcgListPlayerId").textContent=player.playerId||"Player ID not set";
+    $("#tcgListFormat").textContent="Standard";
+    $("#tcgListTotal").textContent=payload.totals.total+" / 60";
+    $("#tcgListGroups").innerHTML=tournamentGroupHtml("Pokemon","Pokémon")+tournamentGroupHtml("Trainer","Trainers")+tournamentGroupHtml("Energy","Energy");
+    lockPreviewScroll();
+    if(typeof dialog.showModal==="function"&&!dialog.open)dialog.showModal();
+  }
+  function closeDeckListPreview(){
+    var dialog=$("#tcgDeckListDialog");
+    if(dialog&&dialog.open)dialog.close();
+    unlockPreviewScroll();
   }
   function openDeck(){
     if(window.VCGApp&&window.VCGApp.navigate)window.VCGApp.navigate("deck");
@@ -682,7 +753,7 @@
     var name=$("#tcgDeckName");
     if(name){
       name.value=state.name||"";
-      name.addEventListener("input",function(){state.name=this.value;save()});
+      name.addEventListener("input",function(){state.name=this.value;save();markDirty()});
     }
     var searchInput=$("#tcgCardSearch");
     if(searchInput){
@@ -712,9 +783,20 @@
       if(confirm("Clear every card from this TCG deck?")){
         state.cards=[];
         renderDeck();
+        markDirty();
+        emit("vcg:deckreset");
         setStatus("Deck cleared.");
       }
     });
+    var listDialog=$("#tcgDeckListDialog");
+    if($("#tcgDeckListPreviewButton"))$("#tcgDeckListPreviewButton").addEventListener("click",openDeckListPreview);
+    if($("#tcgDeckListClose"))$("#tcgDeckListClose").addEventListener("click",closeDeckListPreview);
+    if($("#tcgDeckListDone"))$("#tcgDeckListDone").addEventListener("click",closeDeckListPreview);
+    if(listDialog){
+      listDialog.addEventListener("click",function(e){if(e.target===this)closeDeckListPreview()});
+      listDialog.addEventListener("cancel",function(e){e.preventDefault();closeDeckListPreview()});
+      listDialog.addEventListener("close",function(){unlockPreviewScroll()});
+    }
     var previewDialog=$("#tcgCardPreviewDialog");
     if($("#tcgPreviewClose"))$("#tcgPreviewClose").addEventListener("click",closeCardPreview);
     if($("#tcgPreviewCancel"))$("#tcgPreviewCancel").addEventListener("click",closeCardPreview);
@@ -746,6 +828,14 @@
     renderDeck();
     hydrateStoredSetInfo().catch(function(){});
   }
+
+  window.VCGTCG={
+    exportDeck:exportDeck,
+    importDeck:importDeck,
+    setDeckName:setDeckName,
+    setAccountUser:function(user){accountUser=user||null},
+    renderDeck:renderDeck
+  };
 
   document.addEventListener("DOMContentLoaded",init);
 })();

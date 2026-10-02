@@ -1,7 +1,7 @@
 (function(){
   "use strict";
 
-  var auth={csrf:"",user:null,teams:[],currentTeamId:null,resetToken:""};
+  var auth={csrf:"",user:null,teams:[],decks:[],currentTeamId:null,currentDeckId:null,resetToken:""};
 
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
@@ -166,13 +166,18 @@
       renderProfile();
       if(window.VCGApp)window.VCGApp.applyProfileDefaults(auth.user,false);
     }else{
-      auth.teams=[];auth.currentTeamId=null;renderTeams();
+      auth.teams=[];auth.decks=[];auth.currentTeamId=null;auth.currentDeckId=null;renderTeams();
     }
+    if(window.VCGTCG&&window.VCGTCG.setAccountUser)window.VCGTCG.setAccountUser(auth.user);
     updateBuilderSaveButton(false);
+    updateDeckSaveButton(false);
   }
 
   function friendlyGame(game){
-    return {champions:"Pokémon Champions",sv:"Scarlet / Violet",swsh:"Sword / Shield",go:"Pokémon GO",custom:"Custom / Other"}[game]||game;
+    return {champions:"Pokémon Champions",sv:"Scarlet / Violet",swsh:"Sword / Shield",go:"Pokémon GO",tcg:"Pokémon TCG",custom:"Custom / Other"}[game]||game;
+  }
+  function friendlyFormat(format){
+    return {standard:"Standard",expanded:"Expanded",unlimited:"Unlimited"}[format]||format||"Standard";
   }
 
   function gameLogoHtml(game){
@@ -180,6 +185,7 @@
     if(game==="sv")return '<div class="cloud-game-logos dual" aria-hidden="true"><img src="/images/pokemon_scarlet.webp" alt=""><img src="/images/pokemon_violet.webp" alt=""></div>';
     if(game==="swsh")return '<div class="cloud-game-logos dual" aria-hidden="true"><img src="/images/pokemon_sword.webp" alt=""><img src="/images/pokemon_shield.webp" alt=""></div>';
     if(game==="go")return '<div class="cloud-game-logos single generic go-cloud-mark" aria-hidden="true"><span>GO</span></div>';
+    if(game==="tcg")return '<div class="cloud-game-logos single tcg-cloud-mark" aria-hidden="true"><img src="/images/pokemon_tcg.webp" alt=""></div>';
     return '<div class="cloud-game-logos single generic" aria-hidden="true"><img src="/images/pokemon.svg" alt=""></div>';
   }
 
@@ -188,16 +194,43 @@
     return mons.map(function(mon){return mon.image?'<img src="'+esc(mon.image)+'" alt="">':''}).join("");
   }
 
+  function deckImages(deck){
+    var cards=deck.payload&&Array.isArray(deck.payload.cards)?deck.payload.cards.filter(function(card){return card&&card.image}).slice(0,4):[];
+    return cards.map(function(card){return '<img src="'+esc(String(card.image).replace(/\/$/,"")+"/low.webp")+'" alt="">' }).join("");
+  }
+
   function renderTeams(){
     var list=$("#cloudTeamList");if(!list)return;
+    var builds=auth.teams.map(function(team){return {kind:"team",item:team,updatedAt:team.updatedAt||""}})
+      .concat(auth.decks.map(function(deck){return {kind:"deck",item:deck,updatedAt:deck.updatedAt||""}}))
+      .sort(function(a,b){return String(b.updatedAt).localeCompare(String(a.updatedAt))});
     var count=$("#savedTeamCount");
-    if(count)count.textContent=auth.teams.length+" "+(auth.teams.length===1?"team":"teams");
+    if(count)count.textContent=builds.length+" "+(builds.length===1?"build":"builds");
     if(!auth.user){list.innerHTML="";return}
-    if(!auth.teams.length){
-      list.innerHTML='<div class="cloud-empty"><strong>No saved teams yet</strong><span>Build a team, then use Save to account in the team builder.</span></div>';
+    if(!builds.length){
+      list.innerHTML='<div class="cloud-empty"><strong>No saved builds yet</strong><span>Save a team or TCG deck and it will appear here.</span></div>';
       return;
     }
-    list.innerHTML=auth.teams.map(function(team){
+    list.innerHTML=builds.map(function(build){
+      if(build.kind==="deck"){
+        var deck=build.item;
+        var cards=deck.payload&&Array.isArray(deck.payload.cards)?deck.payload.cards:[];
+        var total=cards.reduce(function(sum,card){return sum+(Number(card.qty)||0)},0);
+        var selectedDeck=Number(auth.currentDeckId)===Number(deck.id);
+        return '<article class="cloud-team cloud-deck'+(selectedDeck?' is-current':'')+'" data-deck-id="'+deck.id+'">'+
+          '<button type="button" class="cloud-team-open" data-load-deck="'+deck.id+'">'+
+            '<div class="cloud-deck-images">'+(deckImages(deck)||'<span class="cloud-deck-placeholder">TCG</span>')+'</div>'+
+            '<div class="cloud-team-copy"><strong>'+esc(deck.name)+'</strong><small>Pokémon TCG · '+esc(friendlyFormat(deck.format))+' · '+total+'/60 cards</small></div>'+
+            gameLogoHtml("tcg")+
+          '</button>'+
+          '<div class="cloud-team-actions">'+
+            '<button type="button" data-rename-deck="'+deck.id+'">Rename</button>'+
+            '<button type="button" data-duplicate-deck="'+deck.id+'">Duplicate</button>'+
+            '<button type="button" class="danger-link" data-delete-deck="'+deck.id+'">Delete</button>'+
+          '</div>'+
+        '</article>';
+      }
+      var team=build.item;
       var selected=Number(auth.currentTeamId)===Number(team.id);
       var mons=team.payload&&Array.isArray(team.payload.team)?team.payload.team.filter(Boolean):[];
       return '<article class="cloud-team'+(selected?' is-current':'')+'" data-team-id="'+team.id+'">'+
@@ -220,8 +253,9 @@
   async function loadTeams(){
     if(!auth.user)return;
     try{
-      var data=await api("teams.php");
-      auth.teams=data.teams||[];
+      var results=await Promise.all([api("teams.php"),api("decks.php")]);
+      auth.teams=results[0].teams||[];
+      auth.decks=results[1].decks||[];
       renderTeams();
     }catch(err){message("#teamPageMessage",err.message,true)}
   }
@@ -237,6 +271,51 @@
     btn.hidden=!auth.user;
     if(!auth.user)return;
     btn.textContent=savedNow?"✓ Saved":(auth.currentTeamId?"Update Team":"Save Team");
+  }
+  function updateDeckSaveButton(savedNow){
+    var btn=$("#saveDeckCloudButton");if(!btn)return;
+    btn.hidden=!auth.user;
+    if(!auth.user)return;
+    btn.textContent=savedNow?"✓ Saved":(auth.currentDeckId?"Update Deck":"Save Deck");
+  }
+  function openSaveDeckDialog(){
+    if(!auth.user||!window.VCGTCG)return;
+    var payload=window.VCGTCG.exportDeck(auth.user);
+    var existing=auth.decks.filter(function(d){return Number(d.id)===Number(auth.currentDeckId)})[0];
+    $("#saveDeckName").value=existing?existing.name:(payload.deckName||"");
+    $("#saveDeckDialogEyebrow").textContent=existing?"Update deck":"Save deck";
+    $("#saveDeckDialogTitle").textContent=existing?"Update your deck":"Name your deck";
+    $("#saveDeckSubmit").textContent=existing?"Update Deck":"Save Deck";
+    message("#saveDeckMessage","");
+    var dialog=$("#saveDeckDialog");
+    if(dialog&&typeof dialog.showModal==="function"){
+      dialog.showModal();
+      if(shouldAutoFocus())setTimeout(function(){$("#saveDeckName").focus();$("#saveDeckName").select()},50);
+    }
+  }
+  function closeSaveDeckDialog(){
+    var dialog=$("#saveDeckDialog");if(dialog&&dialog.open)dialog.close();
+  }
+  async function saveFromDeck(event){
+    if(event)event.preventDefault();
+    if(!auth.user||!window.VCGTCG)return;
+    var name=$("#saveDeckName").value.trim();
+    if(!name){message("#saveDeckMessage","Enter a deck name.",true);return}
+    var existing=auth.decks.filter(function(d){return Number(d.id)===Number(auth.currentDeckId)})[0];
+    window.VCGTCG.setDeckName(name);
+    var payload=window.VCGTCG.exportDeck(auth.user);
+    payload.deckName=name;
+    try{
+      var data=await api("decks.php",{method:"POST",body:{
+        id:auth.currentDeckId||undefined,name:name,format:payload.format||"standard",payload:payload
+      }});
+      auth.currentDeckId=data.deck.id;
+      await loadTeams();
+      closeSaveDeckDialog();
+      updateDeckSaveButton(true);
+      if(window.VCGApp)window.VCGApp.toast(existing?"Deck updated":"Deck saved to your account");
+      setTimeout(function(){updateDeckSaveButton(false)},1600);
+    }catch(err){message("#saveDeckMessage",err.message,true)}
   }
 
   function openSaveTeamDialog(){
@@ -369,7 +448,7 @@
     try{
       var data=await api("account.php",{method:"POST",body:{action:"email",email:email,currentPassword:password}});
       $("#changeEmailPassword").value="";
-      auth.user=null;auth.teams=[];auth.currentTeamId=null;
+      auth.user=null;auth.teams=[];auth.decks=[];auth.currentTeamId=null;auth.currentDeckId=null;
       await refreshSession();
       $("#loginEmail").value=email;
       setPane("login");
@@ -452,7 +531,7 @@
       auth.csrf=loginData.csrf||auth.csrf;
       await api("delete-account.php",{method:"POST",body:{confirmation:confirmation}});
       closeDeleteAccount();
-      auth.user=null;auth.teams=[];auth.currentTeamId=null;
+      auth.user=null;auth.teams=[];auth.decks=[];auth.currentTeamId=null;auth.currentDeckId=null;
       if(window.VCGApp&&window.VCGApp.deleteAccountCleanup)window.VCGApp.deleteAccountCleanup();
       await refreshSession();
       window.VCGApp.navigate("home",{skipBuildGuard:true});
@@ -466,7 +545,7 @@
 
   async function logout(){
     try{await api("logout.php",{method:"POST"})}catch(e){}
-    auth.user=null;auth.teams=[];auth.currentTeamId=null;
+    auth.user=null;auth.teams=[];auth.decks=[];auth.currentTeamId=null;auth.currentDeckId=null;
     await refreshSession();
     setPane("login");
     window.VCGApp.navigate("profile");
@@ -481,6 +560,17 @@
       updateBuilderSaveButton(false);
       renderTeams();
       window.VCGApp.toast(team.name+" loaded");
+    }
+  }
+
+  async function loadDeck(id){
+    var deck=auth.decks.filter(function(item){return Number(item.id)===Number(id)})[0];
+    if(!deck||!window.VCGTCG)return;
+    if(window.VCGTCG.importDeck(deck.payload,deck.name)){
+      auth.currentDeckId=deck.id;
+      updateDeckSaveButton(false);
+      renderTeams();
+      if(window.VCGApp)window.VCGApp.toast(deck.name+" loaded");
     }
   }
 
@@ -541,9 +631,43 @@
     }catch(err){message("#teamPageMessage",err.message,true)}
   }
 
+  async function deleteDeck(id){
+    var deck=auth.decks.filter(function(item){return Number(item.id)===Number(id)})[0];
+    if(!deck||!confirm('Delete "'+deck.name+'"?'))return;
+    try{
+      await api("decks.php?id="+encodeURIComponent(id),{method:"DELETE"});
+      if(Number(auth.currentDeckId)===Number(id))auth.currentDeckId=null;
+      await loadTeams();updateDeckSaveButton(false);message("#teamPageMessage","Deck deleted.");
+    }catch(err){message("#teamPageMessage",err.message,true)}
+  }
+  async function renameDeck(id){
+    var deck=auth.decks.filter(function(item){return Number(item.id)===Number(id)})[0];if(!deck)return;
+    var next=prompt("Rename deck",deck.name);if(next===null)return;next=next.trim();if(!next)return;
+    var payload=Object.assign({},deck.payload,{deckName:next});
+    try{
+      await api("decks.php",{method:"POST",body:{id:deck.id,name:next,format:deck.format,payload:payload}});
+      if(Number(auth.currentDeckId)===Number(id)&&window.VCGTCG)window.VCGTCG.setDeckName(next);
+      await loadTeams();message("#teamPageMessage","Deck renamed.");
+    }catch(err){message("#teamPageMessage",err.message,true)}
+  }
+  async function duplicateDeck(id){
+    var deck=auth.decks.filter(function(item){return Number(item.id)===Number(id)})[0];if(!deck)return;
+    var next=deck.name+" copy";
+    var payload=Object.assign({},deck.payload,{deckName:next});
+    try{
+      await api("decks.php",{method:"POST",body:{name:next,format:deck.format,payload:payload}});
+      await loadTeams();message("#teamPageMessage","Deck duplicated.");
+    }catch(err){message("#teamPageMessage",err.message,true)}
+  }
+
   function wire(){
     $("#accountButton").addEventListener("click",function(){showProfile()});
     $("#saveCloudButton").addEventListener("click",openSaveTeamDialog);
+    $("#saveDeckCloudButton").addEventListener("click",openSaveDeckDialog);
+    $("#saveDeckForm").addEventListener("submit",saveFromDeck);
+    $("#closeSaveDeckDialog").addEventListener("click",closeSaveDeckDialog);
+    $("#cancelSaveDeck").addEventListener("click",closeSaveDeckDialog);
+    $("#saveDeckDialog").addEventListener("click",function(e){if(e.target===this)closeSaveDeckDialog()});
     $("#saveTeamForm").addEventListener("submit",saveFromBuilder);
     $("#closeSaveTeamDialog").addEventListener("click",closeSaveTeamDialog);
     $("#cancelSaveTeam").addEventListener("click",closeSaveTeamDialog);
@@ -579,6 +703,10 @@
 
     $("#cloudTeamList").addEventListener("click",function(e){
       var load=e.target.closest("[data-load-team]");if(load){loadTeam(load.dataset.loadTeam);return}
+      var loadDeckButton=e.target.closest("[data-load-deck]");if(loadDeckButton){loadDeck(loadDeckButton.dataset.loadDeck);return}
+      var renameDeckButton=e.target.closest("[data-rename-deck]");if(renameDeckButton){renameDeck(renameDeckButton.dataset.renameDeck);return}
+      var duplicateDeckButton=e.target.closest("[data-duplicate-deck]");if(duplicateDeckButton){duplicateDeck(duplicateDeckButton.dataset.duplicateDeck);return}
+      var deleteDeckButton=e.target.closest("[data-delete-deck]");if(deleteDeckButton){deleteDeck(deleteDeckButton.dataset.deleteDeck);return}
       var share=e.target.closest("[data-share-team]");if(share){shareSavedTeam(share.dataset.shareTeam);return}
       var revoke=e.target.closest("[data-revoke-share]");if(revoke){revokeTeamShare(revoke.dataset.revokeShare);return}
       var rename=e.target.closest("[data-rename-team]");if(rename){renameTeam(rename.dataset.renameTeam);return}
@@ -588,6 +716,7 @@
 
     document.addEventListener("click",function(e){
       if(e.target.closest("[data-select-game]")){auth.currentTeamId=null;updateBuilderSaveButton(false)}
+      if(e.target.closest("[data-select-deck]")){auth.currentDeckId=null;updateDeckSaveButton(false)}
     });
     document.addEventListener("vcg:buildreset",function(){
       auth.currentTeamId=null;
@@ -595,6 +724,8 @@
     });
     document.addEventListener("vcg:buildsaved",function(){updateBuilderSaveButton(false)});
     document.addEventListener("vcg:builddirty",function(){updateBuilderSaveButton(false)});
+    document.addEventListener("vcg:deckdirty",function(){updateDeckSaveButton(false)});
+    document.addEventListener("vcg:deckreset",function(){auth.currentDeckId=null;updateDeckSaveButton(false)});
 
     document.addEventListener("vcg:navigate",function(e){
       if(!e.detail)return;
