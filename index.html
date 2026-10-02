@@ -8,9 +8,9 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.6.1">
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.7.0">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
-  <script defer src="/assets/js/app.js?v=0.6.4"></script>
+  <script defer src="/assets/js/app.js?v=0.7.0"></script>
   <script defer src="/assets/js/auth.js?v=0.4.0"></script>
 </head>
 <body data-game="champions">
@@ -135,7 +135,10 @@
 
         <div class="section-heading compact team-heading">
           <div><span class="eyebrow">Six slots</span><h2>Battle team</h2></div>
-          <span class="completion" id="completionCount">0 / 6 complete</span>
+          <div class="team-heading-actions">
+            <button class="button secondary showdown-import-button" id="openShowdownImport" type="button">Import Showdown</button>
+            <span class="completion" id="completionCount">0 / 6 complete</span>
+          </div>
         </div>
 
         <div class="team-grid" id="teamGrid" aria-live="polite"></div>
@@ -498,6 +501,30 @@
         <button class="button primary" id="saveTeamSubmit" type="submit">Save Team</button>
       </div>
       <div class="account-message" id="saveTeamMessage" role="status" aria-live="polite"></div>
+    </form>
+  </dialog>
+
+  <dialog class="showdown-dialog" id="showdownDialog" aria-labelledby="showdownDialogTitle">
+    <form class="showdown-modal" id="showdownImportForm">
+      <header class="showdown-modal-head">
+        <div>
+          <span class="eyebrow">Team import</span>
+          <h2 id="showdownDialogTitle">Paste a Pokémon Showdown team</h2>
+        </div>
+        <button class="icon-button" id="closeShowdownDialog" type="button" aria-label="Close Showdown importer">×</button>
+      </header>
+
+      <p class="showdown-intro">Paste a standard Showdown export. Species/forms, held items, abilities, gender, level, Nature/Stat Alignment, Tera Type and moves will be imported automatically.</p>
+      <label class="showdown-textarea-field">
+        <span>Showdown export</span>
+        <textarea id="showdownText" spellcheck="false" autocomplete="off" placeholder="Incineroar @ Sitrus Berry&#10;Ability: Intimidate&#10;EVs: 252 HP / 76 Atk / 180 SpD&#10;Careful Nature&#10;- Fake Out&#10;- Flare Blitz&#10;- Parting Shot&#10;- Protect"></textarea>
+      </label>
+      <p class="showdown-note" id="showdownGameNote">Importing replaces the current six Pokémon. EVs and IVs are used to calculate final stats where the selected game uses standard main-series stat formulas.</p>
+      <div class="showdown-import-status" id="showdownImportStatus" role="status" aria-live="polite"></div>
+      <div class="showdown-actions">
+        <button class="button secondary" id="cancelShowdownImport" type="button">Cancel</button>
+        <button class="button primary" id="importShowdownButton" type="submit">Import team</button>
+      </div>
     </form>
   </dialog>
 

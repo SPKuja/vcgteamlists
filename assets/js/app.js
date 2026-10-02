@@ -1198,6 +1198,234 @@
     }
   }
 
+  function showdownSlug(value){
+    return String(value||"").trim().toLowerCase()
+      .replace(/♀/g,"-f").replace(/♂/g,"-m")
+      .replace(/[’']/g,"").replace(/[.:]/g," ")
+      .replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+  }
+
+  function showdownStatKey(label){
+    return {hp:"hp",atk:"attack",def:"defense",spa:"specialAttack",spd:"specialDefense",spe:"speed"}[String(label||"").toLowerCase()]||"";
+  }
+
+  function parseShowdownSpread(value,defaults){
+    var out=Object.assign({},defaults||{});
+    String(value||"").split("/").forEach(function(part){
+      var match=part.trim().match(/^(\d+)\s+(HP|Atk|Def|SpA|SpD|Spe)$/i);
+      if(match){
+        var key=showdownStatKey(match[2]);
+        if(key)out[key]=Number(match[1]);
+      }
+    });
+    return out;
+  }
+
+  function parseShowdownTeam(text){
+    var blocks=String(text||"").replace(/\r/g,"").trim().split(/\n\s*\n+/).filter(function(block){return block.trim()});
+    return blocks.slice(0,6).map(function(block){
+      var lines=block.split("\n").map(function(line){return line.trim()}).filter(Boolean);
+      if(!lines.length)return null;
+      var first=lines.shift(),item="";
+      var at=first.lastIndexOf(" @ ");
+      if(at>=0){item=first.slice(at+3).trim();first=first.slice(0,at).trim()}
+
+      var gender="";
+      var genderMatch=first.match(/\s+\((M|F)\)$/i);
+      if(genderMatch){
+        gender=genderMatch[1].toUpperCase()==="M"?"Male":"Female";
+        first=first.slice(0,genderMatch.index).trim();
+      }
+
+      var species=first,nickname="";
+      var nickMatch=first.match(/^(.*?)\s*\(([^()]+)\)$/);
+      if(nickMatch){
+        nickname=nickMatch[1].trim();
+        species=nickMatch[2].trim();
+      }
+
+      var set={
+        species:species,nickname:nickname,item:item,ability:"",gender:gender,level:50,
+        nature:"",teraType:"",gigantamax:false,moves:[],
+        evs:{hp:0,attack:0,defense:0,specialAttack:0,specialDefense:0,speed:0},
+        ivs:{hp:31,attack:31,defense:31,specialAttack:31,specialDefense:31,speed:31}
+      };
+
+      lines.forEach(function(line){
+        if(/^Ability:\s*/i.test(line))set.ability=line.replace(/^Ability:\s*/i,"").trim();
+        else if(/^Level:\s*/i.test(line))set.level=Math.max(1,Math.min(100,Number(line.replace(/^Level:\s*/i,"").trim())||50));
+        else if(/^Tera Type:\s*/i.test(line))set.teraType=line.replace(/^Tera Type:\s*/i,"").trim();
+        else if(/^EVs:\s*/i.test(line))set.evs=parseShowdownSpread(line.replace(/^EVs:\s*/i,""),set.evs);
+        else if(/^IVs:\s*/i.test(line))set.ivs=parseShowdownSpread(line.replace(/^IVs:\s*/i,""),set.ivs);
+        else if(/^Gigantamax:\s*Yes/i.test(line))set.gigantamax=true;
+        else if(/ Nature$/i.test(line))set.nature=line.replace(/ Nature$/i,"").trim();
+        else if(/^[-–]\s+/.test(line)&&set.moves.length<4)set.moves.push(line.replace(/^[-–]\s+/,"").trim());
+      });
+      return set.species?set:null;
+    }).filter(Boolean);
+  }
+
+  var showdownNatureEffects={
+    adamant:["attack","specialAttack"],bashful:["",""],bold:["defense","attack"],brave:["attack","speed"],
+    calm:["specialDefense","attack"],careful:["specialDefense","specialAttack"],docile:["",""],gentle:["specialDefense","defense"],
+    hardy:["",""],hasty:["speed","defense"],impish:["defense","specialAttack"],jolly:["speed","specialAttack"],
+    lax:["defense","specialDefense"],lonely:["attack","defense"],mild:["specialAttack","defense"],modest:["specialAttack","attack"],
+    naive:["speed","specialDefense"],naughty:["attack","specialDefense"],quiet:["specialAttack","speed"],quirky:["",""],
+    rash:["specialAttack","specialDefense"],relaxed:["defense","speed"],sassy:["specialDefense","speed"],serious:["",""],
+    timid:["speed","attack"]
+  };
+
+  function showdownNatureMultiplier(nature,key){
+    var effect=showdownNatureEffects[String(nature||"").toLowerCase()];
+    if(!effect)return 1;
+    if(effect[0]===key)return 1.1;
+    if(effect[1]===key)return .9;
+    return 1;
+  }
+
+  function calculateShowdownStats(pokemonData,set){
+    var base={};
+    (pokemonData.stats||[]).forEach(function(row){
+      var key={"hp":"hp","attack":"attack","defense":"defense","special-attack":"specialAttack","special-defense":"specialDefense","speed":"speed"}[row.stat&&row.stat.name];
+      if(key)base[key]=Number(row.base_stat)||0;
+    });
+    var out=emptyStats(),level=set.level||50;
+    statKeys.forEach(function(key){
+      if(base[key]===undefined)return;
+      var iv=Number(set.ivs[key]);if(!Number.isFinite(iv))iv=31;
+      var ev=Number(set.evs[key])||0;
+      if(key==="hp"){
+        out[key]=base[key]===1?1:Math.floor(((2*base[key]+iv+Math.floor(ev/4))*level)/100)+level+10;
+      }else{
+        var raw=Math.floor(((2*base[key]+iv+Math.floor(ev/4))*level)/100)+5;
+        out[key]=Math.floor(raw*showdownNatureMultiplier(set.nature,key));
+      }
+    });
+    return out;
+  }
+
+  async function pokemonDataForShowdown(species){
+    var requested=showdownSlug(species);
+    if(!requested)throw new Error("Missing species");
+    var res=await fetch(API+"/pokemon/"+encodeURIComponent(requested));
+    if(res.ok)return res.json();
+
+    var speciesRes=await fetch(API+"/pokemon-species/"+encodeURIComponent(requested));
+    if(!speciesRes.ok)throw new Error("Pokémon not found");
+    var speciesData=await speciesRes.json();
+    var variety=(speciesData.varieties||[]).filter(function(v){return v.is_default})[0]||(speciesData.varieties||[])[0];
+    if(!variety)throw new Error("Pokémon form not found");
+    res=await fetch(API+"/pokemon/"+encodeURIComponent(variety.pokemon.name));
+    if(!res.ok)throw new Error("Pokémon form not found");
+    return res.json();
+  }
+
+  async function hydrateShowdownSet(set){
+    var mon=blankMon();
+    mon.name=set.species;
+    mon.slug=showdownSlug(set.species);
+    mon.ability=set.ability;
+    mon.item=set.item;
+    mon.gender=set.gender;
+    mon.level=set.level||50;
+    mon.alignment=set.nature;
+    mon.teraType=set.teraType;
+    mon.gigantamax=!!set.gigantamax;
+    mon.moves=set.moves.slice(0,4);
+    while(mon.moves.length<4)mon.moves.push("");
+
+    try{
+      var pokemonData=await pokemonDataForShowdown(set.species);
+      var speciesSlug=(pokemonData.species&&pokemonData.species.name)||showdownSlug(set.species);
+      var speciesRes=await fetch(API+"/pokemon-species/"+encodeURIComponent(speciesSlug));
+      var speciesData=speciesRes.ok?await speciesRes.json():null;
+      var forms=speciesData?(speciesData.varieties||[]).map(function(v){return {slug:v.pokemon.name,isDefault:!!v.is_default}}):[];
+      var currentForm=forms.filter(function(v){return v.slug===pokemonData.name})[0]||{slug:pokemonData.name,isDefault:pokemonData.name===speciesSlug};
+
+      mon.speciesSlug=speciesSlug;
+      mon.slug=pokemonData.name;
+      mon.name=prettyName(speciesSlug);
+      mon.form=formLabel(speciesSlug,pokemonData.name,currentForm.isDefault);
+      mon.availableForms=forms;
+      mon.image=(pokemonData.sprites&&pokemonData.sprites.other&&pokemonData.sprites.other.home&&pokemonData.sprites.other.home.front_default)||
+        (pokemonData.sprites&&pokemonData.sprites.other&&pokemonData.sprites.other["official-artwork"]&&pokemonData.sprites.other["official-artwork"].front_default)||
+        (pokemonData.sprites&&pokemonData.sprites.front_default)||"";
+      mon.types=(pokemonData.types||[]).map(function(t){return prettyName(t.type.name)});
+      mon.availableAbilities=(pokemonData.abilities||[]).map(function(a){return a.ability.name});
+      mon.availableMoves=(pokemonData.moves||[]).map(function(m){return m.move.name});
+      if(state.game!=="champions")mon.stats=calculateShowdownStats(pokemonData,set);
+    }catch(e){
+      mon.name=set.species;
+    }
+
+    if(set.nature){
+      var natureMeta=await getNatureMeta(set.nature);
+      mon.alignmentUp=natureMeta.up||"";
+      mon.alignmentDown=natureMeta.down||"";
+    }
+    if(set.item){
+      var itemMeta=await getItemMeta(set.item);
+      mon.itemImage=itemMeta.image||"";
+    }
+    await Promise.all(mon.moves.map(async function(move,index){
+      if(!move)return;
+      var meta=await getMoveMeta(move);
+      mon.moveTypes[index]=meta.type||"";
+      mon.moveClasses[index]=meta.damageClass||"";
+    }));
+    return mon;
+  }
+
+  function openShowdownImport(){
+    var dialog=$("#showdownDialog");
+    $("#showdownImportStatus").textContent="";
+    $("#showdownGameNote").textContent=state.game==="champions"
+      ?"Importing replaces the current six Pokémon. Showdown EVs/IVs are not mapped to Champions Stat Points, so those still need to be entered separately."
+      :"Importing replaces the current six Pokémon. EVs and IVs are used to calculate final stats with standard main-series formulas.";
+    if(dialog&&typeof dialog.showModal==="function"){
+      dialog.showModal();
+      setTimeout(function(){$("#showdownText").focus()},60);
+    }
+  }
+
+  function closeShowdownImport(){
+    var dialog=$("#showdownDialog");
+    if(dialog&&dialog.open)dialog.close();
+  }
+
+  async function importShowdownTeam(event){
+    event.preventDefault();
+    var sets=parseShowdownTeam($("#showdownText").value);
+    var status=$("#showdownImportStatus");
+    if(!sets.length){
+      status.textContent="No valid Showdown sets were found.";
+      status.classList.add("is-error");
+      return;
+    }
+    if(state.team.some(function(mon){return mon&&mon.name})&&!confirm("Replace the current team with the imported Showdown team?"))return;
+
+    var button=$("#importShowdownButton");
+    button.disabled=true;button.textContent="Importing…";
+    status.classList.remove("is-error");
+    status.textContent="Importing "+sets.length+" Pokémon…";
+    try{
+      var mons=await Promise.all(sets.map(hydrateShowdownSet));
+      state.team=mons.slice(0,6);
+      while(state.team.length<6)state.team.push(null);
+      markDirty();
+      renderTeam();
+      closeShowdownImport();
+      showToast(mons.length+" Pokémon imported from Showdown");
+      $("#showdownText").value="";
+    }catch(err){
+      console.error("Showdown import failed",err);
+      status.textContent="Could not import this team. Check the pasted Showdown export and try again.";
+      status.classList.add("is-error");
+    }finally{
+      button.disabled=false;button.textContent="Import team";
+    }
+  }
+
   function wireEvents(){
     $$("[data-select-game]").forEach(function(b){b.addEventListener("click",function(){
       var dialog=b.closest("#newTeamDialog");
@@ -1212,6 +1440,11 @@
     $("#newTeamDialog").addEventListener("click",function(e){if(e.target===this)this.close()});
     $$("[data-nav]").forEach(function(b){b.addEventListener("click",function(){navigate(b.dataset.nav)})});
     $("#teamGrid").addEventListener("click",function(e){var slot=e.target.closest(".team-slot");if(slot)openEditor(Number(slot.dataset.slot))});
+    $("#openShowdownImport").addEventListener("click",openShowdownImport);
+    $("#showdownImportForm").addEventListener("submit",importShowdownTeam);
+    $("#closeShowdownDialog").addEventListener("click",closeShowdownImport);
+    $("#cancelShowdownImport").addEventListener("click",closeShowdownImport);
+    $("#showdownDialog").addEventListener("click",function(e){if(e.target===this)closeShowdownImport()});
     $("#closeEditorButton").addEventListener("click",closeEditor);
     $("#savePokemonButton").addEventListener("click",saveEditor);
     $("#removePokemonButton").addEventListener("click",removeEditor);

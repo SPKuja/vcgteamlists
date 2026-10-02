@@ -1487,3 +1487,57 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .stats-pokemon-art,.stats-pokemon-art img{width:52px;height:52px}
   .stats-pokemon-bar{left:101px}
 }
+
+/* Pokémon Showdown import */
+.team-heading-actions{display:flex;align-items:center;gap:9px}
+.showdown-import-button{min-height:36px;padding:0 12px;border-radius:12px;font-size:11px}
+.showdown-dialog{
+  width:min(94vw,720px);
+  max-height:90vh;
+  padding:0;
+  border:0;
+  border-radius:24px;
+  background:transparent;
+  color:var(--text);
+}
+.showdown-dialog::backdrop{background:rgba(15,17,28,.48);backdrop-filter:blur(7px)}
+.showdown-modal{
+  padding:22px;
+  border:1px solid rgba(255,255,255,.8);
+  border-radius:24px;
+  background:var(--bg);
+  box-shadow:0 24px 80px rgba(0,0,0,.24);
+}
+.showdown-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.showdown-modal-head h2{margin:0;font-size:24px;letter-spacing:-.035em}
+.showdown-intro{margin:9px 0 17px;color:var(--muted);font-size:12px;line-height:1.55}
+.showdown-textarea-field>span{display:block;font-size:11px;font-weight:800;color:#5e6070;margin:0 0 6px}
+.showdown-textarea-field textarea{
+  display:block;
+  width:100%;
+  min-height:330px;
+  resize:vertical;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+  padding:14px;
+  color:var(--text);
+  font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+}
+.showdown-textarea-field textarea:focus{outline:none;border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0 0 4px rgba(var(--accent-rgb),.08)}
+.showdown-note{margin:10px 2px 0;color:#858794;font-size:10px;line-height:1.5}
+.showdown-import-status{min-height:20px;margin-top:9px;font-size:11px;font-weight:750;color:#27704b}
+.showdown-import-status.is-error{color:var(--danger)}
+.showdown-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:10px}
+.showdown-actions .button:disabled{opacity:.6;cursor:wait}
+
+@media(max-width:699px){
+  .team-heading{align-items:flex-start!important}
+  .team-heading-actions{flex-direction:column;align-items:flex-end;gap:7px}
+  .showdown-import-button{min-height:34px;font-size:10px}
+  .showdown-modal{padding:17px}
+  .showdown-modal-head h2{font-size:21px}
+  .showdown-intro{font-size:11px}
+  .showdown-textarea-field textarea{min-height:300px;font-size:11px}
+  .showdown-actions{display:grid;grid-template-columns:1fr 1fr}
+}
