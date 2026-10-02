@@ -1097,8 +1097,6 @@
       var shadowEntry=goShadowEntry(data,entry.speciesId);
       var shadow=false;
       var name=(entry.speciesName||prettyName(entry.speciesId.replace(/_/g,"-"))).replace(/\s*\(Shadow\)\s*$/i,"");
-      var league=goLeagueInfo();
-      var defaults=league.key&&entry.defaultIVs&&entry.defaultIVs[league.key]?entry.defaultIVs[league.key]:null;
       var mon=blankMon();
       mon.speciesSlug=String(entry.dex||"");
       mon.slug=speciesId;
@@ -1116,10 +1114,6 @@
       mon.image=artwork.image||"";
       mon.goArtworkKey=goArtworkKey(entry);
       mon.goArtworkSource=artwork.source||"";
-      if(defaults){
-        mon.goLevel=defaults[0];
-        mon.goIVs={attack:defaults[1],defense:defaults[2],hp:defaults[3]};
-      }
       setEditorPokemon(mon);
       $("#pokemonSearch").value=name;
       renderGameFields(mon);
