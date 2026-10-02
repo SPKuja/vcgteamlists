@@ -8,9 +8,9 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.5.5">
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.6.0">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
-  <script defer src="/assets/js/app.js?v=0.5.5"></script>
+  <script defer src="/assets/js/app.js?v=0.6.0"></script>
   <script defer src="/assets/js/auth.js?v=0.4.0"></script>
 </head>
 <body data-game="champions">
@@ -201,6 +201,99 @@
         </div>
       </section>
 
+      <section class="view stats-view" id="statsView" aria-labelledby="statsTitle">
+        <div class="stats-page-head">
+          <div>
+            <span class="eyebrow">Community snapshot</span>
+            <h1 id="statsTitle">Stats</h1>
+            <p>Anonymous, aggregate stats from teams saved to VGC Team Lists.</p>
+          </div>
+          <span class="stats-updated" id="statsUpdated">Loading…</span>
+        </div>
+
+        <div class="stats-loading" id="statsLoading">
+          <span class="stats-spinner" aria-hidden="true"></span>
+          <strong>Crunching the numbers…</strong>
+        </div>
+
+        <div id="statsContent" hidden>
+          <div class="stats-overview-grid">
+            <article class="stats-metric">
+              <span class="stats-metric-icon">◎</span>
+              <div><strong id="statUsers">0</strong><small>Registered players</small></div>
+            </article>
+            <article class="stats-metric">
+              <span class="stats-metric-icon">▤</span>
+              <div><strong id="statTeams">0</strong><small>Saved teams</small></div>
+            </article>
+            <article class="stats-metric">
+              <span class="stats-metric-icon">◉</span>
+              <div><strong id="statPokemonSlots">0</strong><small>Pokémon saved</small></div>
+            </article>
+            <article class="stats-metric">
+              <span class="stats-metric-icon">✦</span>
+              <div><strong id="statUniquePokemon">0</strong><small>Unique Pokémon / forms</small></div>
+            </article>
+          </div>
+
+          <div class="stats-grid">
+            <section class="stats-panel stats-popular-pokemon">
+              <div class="stats-panel-head">
+                <div><span class="eyebrow">Team picks</span><h2>Most popular Pokémon</h2></div>
+                <span class="stats-panel-note" id="statAverageTeam">—</span>
+              </div>
+              <div class="stats-pokemon-list" id="statsPokemonList"></div>
+            </section>
+
+            <section class="stats-panel">
+              <div class="stats-panel-head">
+                <div><span class="eyebrow">Formats</span><h2>Teams by game</h2></div>
+              </div>
+              <div class="stats-bars" id="statsGameBreakdown"></div>
+            </section>
+
+            <section class="stats-panel">
+              <div class="stats-panel-head">
+                <div><span class="eyebrow">Loadouts</span><h2>Popular held items</h2></div>
+              </div>
+              <div class="stats-ranked-list" id="statsItems"></div>
+            </section>
+
+            <section class="stats-panel">
+              <div class="stats-panel-head">
+                <div><span class="eyebrow">Abilities</span><h2>Most used abilities</h2></div>
+              </div>
+              <div class="stats-ranked-list" id="statsAbilities"></div>
+            </section>
+
+            <section class="stats-panel">
+              <div class="stats-panel-head">
+                <div><span class="eyebrow">Nature / alignment</span><h2>Most common choices</h2></div>
+              </div>
+              <div class="stats-ranked-list" id="statsAlignments"></div>
+            </section>
+
+            <section class="stats-panel stats-growth-panel">
+              <div class="stats-panel-head">
+                <div><span class="eyebrow">Last 30 days</span><h2>Community activity</h2></div>
+              </div>
+              <div class="stats-growth-grid">
+                <div><strong id="statNewUsers">0</strong><span>new players</span></div>
+                <div><strong id="statNewTeams">0</strong><span>new teams</span></div>
+              </div>
+            </section>
+          </div>
+
+          <p class="stats-privacy-note">Only anonymous aggregate data is shown here. Player names, IDs, emails and individual team ownership are never exposed.</p>
+        </div>
+
+        <div class="stats-error" id="statsError" hidden>
+          <strong>Stats are temporarily unavailable.</strong>
+          <span>Try again in a moment.</span>
+          <button class="button secondary" id="retryStatsButton" type="button">Retry</button>
+        </div>
+      </section>
+
       <section class="view profile-view" id="profileView" aria-labelledby="profileTitle">
         <div class="profile-page-head">
           <div><span class="eyebrow">Your account</span><h1 id="profileTitle">Profile</h1></div>
@@ -326,6 +419,7 @@
       <button class="is-active" data-nav="home"><span>⌂</span><small>Home</small></button>
       <button data-nav="team"><span>◫</span><small>Team</small></button>
       <button data-nav="teams"><span>☁</span><small>My Teams</small></button>
+      <button data-nav="stats"><span>⌁</span><small>Stats</small></button>
       <button data-nav="preview"><span>▤</span><small>Preview</small></button>
     </nav>
   </div>

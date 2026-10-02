@@ -28,6 +28,9 @@
   var moveMetaCache=null;
   var itemMetaCache=null;
   var natureMetaCache=null;
+  var statsCache=null;
+  var statsLoadedAt=0;
+  var statsLoading=false;
   var toastTimer=null;
 
   function $(s,root){return (root||document).querySelector(s)}
@@ -200,12 +203,13 @@
     navigate("team");
   }
 
-  var routePaths={home:"/",team:"/team-builder",teams:"/my-teams",preview:"/preview",profile:"/profile"};
+  var routePaths={home:"/",team:"/team-builder",teams:"/my-teams",stats:"/stats",preview:"/preview",profile:"/profile"};
 
   function routeTarget(pathname){
     var path=(pathname||"/").replace(/\/+$/,"")||"/";
     if(path==="/team-builder")return "team";
     if(path==="/my-teams")return "teams";
+    if(path==="/stats")return "stats";
     if(path==="/preview")return "preview";
     if(path==="/profile")return "profile";
     return "home";
@@ -214,7 +218,7 @@
   function navigate(target,options){
     options=options||{};
     var current=$(".view.is-active");
-    var currentTarget=current&&current.id==="builderView"?"team":current&&current.id==="previewView"?"preview":current&&current.id==="teamsView"?"teams":current&&current.id==="profileView"?"profile":"home";
+    var currentTarget=current&&current.id==="builderView"?"team":current&&current.id==="previewView"?"preview":current&&current.id==="teamsView"?"teams":current&&current.id==="statsView"?"stats":current&&current.id==="profileView"?"profile":"home";
     var leavingBuild=(currentTarget==="team"||currentTarget==="preview")&&(target!=="team"&&target!=="preview");
 
     if(leavingBuild&&!options.skipBuildGuard){
@@ -227,10 +231,11 @@
     }
 
     $$(".view").forEach(function(v){v.classList.remove("is-active")});
-    var id=target==="home"?"homeView":target==="preview"?"previewView":target==="teams"?"teamsView":target==="profile"?"profileView":"builderView";
+    var id=target==="home"?"homeView":target==="preview"?"previewView":target==="teams"?"teamsView":target==="stats"?"statsView":target==="profile"?"profileView":"builderView";
     $("#"+id).classList.add("is-active");
     $$(".bottom-nav button").forEach(function(b){b.classList.toggle("is-active",b.dataset.nav===target)});
     if(target==="preview")renderPreview();
+    if(target==="stats")loadStats(false);
 
     if(!options.skipHistory){
       var next=routePaths[target]||"/";
@@ -1079,6 +1084,105 @@
     state.team=blankTeam();markDirty();renderTeam();showToast("Team cleared");
   }
 
+  function formatStatNumber(value){
+    return new Intl.NumberFormat(undefined,{maximumFractionDigits:1}).format(Number(value)||0);
+  }
+
+  function statsGameName(game){
+    return {champions:"Pokémon Champions",sv:"Scarlet / Violet",swsh:"Sword / Shield",custom:"Custom / Other"}[game]||prettyName(game);
+  }
+
+  function renderRankedStats(target,rows,total,withImages){
+    var el=$(target);if(!el)return;
+    if(!rows||!rows.length){
+      el.innerHTML='<div class="stats-empty">Not enough saved team data yet.</div>';
+      return;
+    }
+    var max=Math.max.apply(null,rows.map(function(row){return Number(row.count)||0}));
+    el.innerHTML=rows.map(function(row,index){
+      var count=Number(row.count)||0;
+      var pct=total?Math.round((count/total)*100):0;
+      return '<div class="stats-ranked-row">'+
+        '<span class="stats-rank">'+(index+1)+'</span>'+
+        (withImages&&row.image?'<img src="'+escapeHtml(row.image)+'" alt="" loading="lazy">':'')+
+        '<div class="stats-ranked-copy"><strong>'+escapeHtml(row.name||"—")+'</strong><span><i style="width:'+Math.max(6,Math.round((count/max)*100))+'%"></i></span></div>'+
+        '<div class="stats-ranked-value"><strong>'+formatStatNumber(count)+'</strong>'+(total?'<small>'+pct+'%</small>':'')+'</div>'+
+      '</div>';
+    }).join("");
+  }
+
+  function renderStats(data){
+    var overview=data.overview||{};
+    $("#statUsers").textContent=formatStatNumber(overview.registeredUsers);
+    $("#statTeams").textContent=formatStatNumber(overview.savedTeams);
+    $("#statPokemonSlots").textContent=formatStatNumber(overview.pokemonSlots);
+    $("#statUniquePokemon").textContent=formatStatNumber(overview.uniquePokemon);
+    $("#statNewUsers").textContent=formatStatNumber(overview.newUsers30d);
+    $("#statNewTeams").textContent=formatStatNumber(overview.newTeams30d);
+    $("#statAverageTeam").textContent=(overview.averageTeamSize||0)+" Pokémon per saved team";
+
+    var pokemon=data.popularPokemon||[];
+    var pokemonTotal=Number(overview.pokemonSlots)||0;
+    var pokemonList=$("#statsPokemonList");
+    if(!pokemon.length){
+      pokemonList.innerHTML='<div class="stats-empty">No saved Pokémon yet.</div>';
+    }else{
+      pokemonList.innerHTML=pokemon.map(function(row,index){
+        var pct=pokemonTotal?Math.round((Number(row.count)||0)/pokemonTotal*100):0;
+        return '<article class="stats-pokemon-row">'+
+          '<span class="stats-pokemon-rank">'+(index+1)+'</span>'+
+          '<div class="stats-pokemon-art">'+(row.image?'<img src="'+escapeHtml(row.image)+'" alt="" loading="lazy">':'<span>◉</span>')+'</div>'+
+          '<div class="stats-pokemon-copy"><strong>'+escapeHtml(row.name||"Pokémon")+'</strong><span>'+formatStatNumber(row.count)+' team slots · '+pct+'%</span></div>'+
+          '<div class="stats-pokemon-bar"><i style="width:'+Math.max(5,pct)+'%"></i></div>'+
+        '</article>';
+      }).join("");
+    }
+
+    var games=data.gameBreakdown||[];
+    var gameMax=Math.max.apply(null,[1].concat(games.map(function(row){return Number(row.count)||0})));
+    $("#statsGameBreakdown").innerHTML=games.map(function(row){
+      var count=Number(row.count)||0;
+      return '<div class="stats-bar-row"><div><strong>'+escapeHtml(statsGameName(row.game))+'</strong><span>'+formatStatNumber(count)+' team'+(count===1?'':'s')+'</span></div>'+
+        '<span class="stats-bar-track"><i style="width:'+Math.round((count/gameMax)*100)+'%"></i></span></div>';
+    }).join("");
+
+    renderRankedStats("#statsItems",data.popularItems||[],pokemonTotal,true);
+    renderRankedStats("#statsAbilities",data.popularAbilities||[],pokemonTotal,false);
+    renderRankedStats("#statsAlignments",data.popularAlignments||[],pokemonTotal,false);
+
+    var generated=data.generatedAt?new Date(data.generatedAt):new Date();
+    $("#statsUpdated").textContent="Updated "+generated.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+    $("#statsLoading").hidden=true;
+    $("#statsError").hidden=true;
+    $("#statsContent").hidden=false;
+  }
+
+  async function loadStats(force){
+    if(statsLoading)return;
+    if(!force&&statsCache&&(Date.now()-statsLoadedAt)<300000){
+      renderStats(statsCache);
+      return;
+    }
+    statsLoading=true;
+    $("#statsLoading").hidden=false;
+    $("#statsError").hidden=true;
+    $("#statsContent").hidden=true;
+    try{
+      var response=await fetch("/api/stats.php",{headers:{"Accept":"application/json"}});
+      if(!response.ok)throw new Error("Stats request failed");
+      var data=await response.json();
+      statsCache=data;statsLoadedAt=Date.now();
+      renderStats(data);
+    }catch(e){
+      $("#statsLoading").hidden=true;
+      $("#statsContent").hidden=true;
+      $("#statsError").hidden=false;
+      $("#statsUpdated").textContent="Unavailable";
+    }finally{
+      statsLoading=false;
+    }
+  }
+
   function wireEvents(){
     $$("[data-select-game]").forEach(function(b){b.addEventListener("click",function(){
       var dialog=b.closest("#newTeamDialog");
@@ -1134,6 +1238,7 @@
     $$("[data-sheet-mode]").forEach(function(b){b.addEventListener("click",function(){if(state.sheetMode!==b.dataset.sheetMode){state.sheetMode=b.dataset.sheetMode;markDirty()}renderPreview()})});
     $("#printButton").addEventListener("click",function(){printTeamSheet()});
     $("#shareButton").addEventListener("click",shareTeam);
+    $("#retryStatsButton").addEventListener("click",function(){loadStats(true)});
     document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!$("#editorBackdrop").hidden)closeEditor()});
     window.addEventListener("beforeunload",function(e){
       if(state.activeBuild&&state.dirty){e.preventDefault();e.returnValue=""}
@@ -1201,7 +1306,7 @@
     window.addEventListener("popstate",function(){
       var requestedTarget=routeTarget(location.pathname);
       var current=$(".view.is-active");
-      var currentTarget=current&&current.id==="builderView"?"team":current&&current.id==="previewView"?"preview":current&&current.id==="teamsView"?"teams":current&&current.id==="profileView"?"profile":"home";
+      var currentTarget=current&&current.id==="builderView"?"team":current&&current.id==="previewView"?"preview":current&&current.id==="teamsView"?"teams":current&&current.id==="statsView"?"stats":current&&current.id==="profileView"?"profile":"home";
       if(!navigate(requestedTarget,{skipHistory:true,instant:true})){
         history.pushState({target:currentTarget},"",routePaths[currentTarget]||"/");
       }
