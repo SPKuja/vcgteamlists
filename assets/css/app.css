@@ -1775,3 +1775,8 @@ main>*,
   .shared-mon-details{grid-template-columns:1fr}
   .shared-mon-moves{grid-template-columns:1fr}
 }
+
+.cloud-team-actions{flex-wrap:wrap}
+@media(max-width:620px){
+  .cloud-team-actions{justify-content:flex-start}
+}

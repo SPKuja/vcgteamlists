@@ -25,12 +25,7 @@ if ($method === 'GET') {
 
     $payload = json_decode((string) $row['payload'], true);
     if (!is_array($payload)) $payload = [];
-    if (isset($payload['meta']) && is_array($payload['meta'])) {
-        $payload['meta'] = [
-            'playerName' => (string) ($payload['meta']['playerName'] ?? ''),
-            'trainerName' => (string) ($payload['meta']['trainerName'] ?? ''),
-        ];
-    }
+    unset($payload['meta']);
 
     json_response([
         'team' => [
