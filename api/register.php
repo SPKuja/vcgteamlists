@@ -7,7 +7,12 @@ require_csrf();
 $body = json_body(20000);
 $email = normalize_email((string) ($body['email'] ?? ''));
 $password = (string) ($body['password'] ?? '');
+$acceptTerms = ($body['acceptTerms'] ?? false) === true;
+$termsVersion = '2026-10-02';
 
+if (!$acceptTerms) {
+    json_response(['error' => 'You must agree to the Terms & Conditions and acknowledge the Privacy Notice.'], 422);
+}
 if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) {
     json_response(['error' => 'Enter a valid email address.'], 422);
 }
@@ -18,11 +23,15 @@ if (rate_limited('register', $email, 5, 3600)) {
     json_response(['error' => 'Too many attempts. Try again later.'], 429);
 }
 
-$stmt = db()->prepare('SELECT id, email, email_verified_at FROM users WHERE email = ? LIMIT 1');
+$stmt = db()->prepare('SELECT id, email, email_verified_at, terms_accepted_at, terms_version FROM users WHERE email = ? LIMIT 1');
 $stmt->execute([$email]);
 $existing = $stmt->fetch();
 
 if ($existing) {
+    if (empty($existing['terms_accepted_at'])) {
+        db()->prepare('UPDATE users SET terms_accepted_at = UTC_TIMESTAMP(), terms_version = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?')
+            ->execute([$termsVersion, (int) $existing['id']]);
+    }
     record_attempt('register', $email, false);
     if (empty($existing['email_verified_at'])) {
         send_verification_email($existing);
@@ -37,10 +46,10 @@ $hash = password_hash($password, password_algorithm());
 if (!is_string($hash)) throw new RuntimeException('Could not hash password.');
 
 $stmt = db()->prepare(
-    'INSERT INTO users (email, password_hash, created_at, updated_at)
-     VALUES (?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+    'INSERT INTO users (email, password_hash, terms_accepted_at, terms_version, created_at, updated_at)
+     VALUES (?, ?, UTC_TIMESTAMP(), ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
 );
-$stmt->execute([$email, $hash]);
+$stmt->execute([$email, $hash, $termsVersion]);
 $userId = (int) db()->lastInsertId();
 
 $stmt = db()->prepare('SELECT * FROM users WHERE id = ?');

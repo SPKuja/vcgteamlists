@@ -1541,3 +1541,85 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .showdown-textarea-field textarea{min-height:300px;font-size:11px}
   .showdown-actions{display:grid;grid-template-columns:1fr 1fr}
 }
+
+/* Legal consent, legal pages, and account deletion */
+.legal-consent{
+  display:flex!important;
+  align-items:flex-start;
+  gap:9px;
+  padding:10px 11px;
+  border:1px solid #e3e4eb;
+  border-radius:12px;
+  background:#fafafe;
+}
+.legal-consent input{width:17px;height:17px;flex:0 0 17px;margin-top:1px}
+.legal-consent span{font-size:11px!important;line-height:1.45;color:#676977!important}
+.legal-consent a{color:var(--accent);font-weight:800;text-decoration:none}
+.legal-consent a:hover{text-decoration:underline}
+
+.account-danger-zone{
+  margin-top:24px;
+  padding:18px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  border:1px solid #efc9ce;
+  border-radius:18px;
+  background:#fff8f9;
+}
+.account-danger-zone h2{margin:0;font-size:18px}
+.account-danger-zone p{margin:5px 0 0;color:#7c666a;font-size:11px;line-height:1.45}
+
+.delete-account-dialog{
+  width:min(92vw,540px);
+  padding:0;
+  border:0;
+  border-radius:22px;
+  background:transparent;
+  color:var(--text);
+}
+.delete-account-dialog::backdrop{background:rgba(15,17,28,.52);backdrop-filter:blur(7px)}
+.delete-account-modal{
+  padding:22px;
+  border-radius:22px;
+  background:#fff;
+  box-shadow:0 24px 80px rgba(0,0,0,.28);
+}
+.delete-account-modal header{display:flex;align-items:flex-start;justify-content:space-between;gap:15px}
+.delete-account-modal h2{margin:0;font-size:24px;letter-spacing:-.035em}
+.delete-account-modal>p{margin:10px 0 17px;color:var(--muted);font-size:12px;line-height:1.55}
+.delete-account-modal label{display:block;margin-top:11px}
+.delete-account-modal label>span{display:block;margin-bottom:5px;font-size:10px;font-weight:800;color:#656775}
+.delete-account-modal input{width:100%}
+.delete-account-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:17px}
+.delete-account-actions .button:disabled{opacity:.6}
+
+.standalone-legal-shell{
+  width:min(100% - 28px,980px);
+  margin:0 auto;
+  padding:34px 0 56px;
+}
+.legal-page{
+  padding:32px;
+  border:1px solid var(--line);
+  border-radius:24px;
+  background:#fff;
+  box-shadow:var(--shadow-soft);
+}
+.legal-page h1{margin:2px 0 5px;font-size:clamp(36px,5vw,54px);letter-spacing:-.05em}
+.legal-page h2{margin:25px 0 7px;font-size:18px}
+.legal-page p{margin:0;color:#5f6170;font-size:13px;line-height:1.7}
+.legal-updated{margin-bottom:23px!important;color:#9294a0!important;font-size:10px!important}
+.legal-back{display:inline-block;margin-bottom:20px;text-decoration:none}
+
+@media(max-width:699px){
+  .legal-consent span{font-size:12px!important}
+  .account-danger-zone{align-items:flex-start;flex-direction:column}
+  .account-danger-zone .button{width:100%}
+  .delete-account-modal{padding:18px}
+  .delete-account-actions{display:grid;grid-template-columns:1fr}
+  .standalone-legal-shell{padding-top:18px}
+  .legal-page{padding:21px;border-radius:20px}
+  .legal-page p{font-size:12px}
+}

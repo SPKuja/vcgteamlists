@@ -25,6 +25,7 @@ jobs:
           test -f manifest.webmanifest
           test -f assets/js/app.js
           node --check assets/js/app.js
+          node --check assets/js/auth.js
           if compgen -G "api/*.php" > /dev/null; then
             for file in api/*.php; do php -l "$file"; done
           fi

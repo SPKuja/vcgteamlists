@@ -28,6 +28,20 @@ $pdo->exec(
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
 );
 
+function ensure_column(PDO $pdo, string $table, string $column, string $definition): void {
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+    );
+    $stmt->execute([$table, $column]);
+    if ((int) $stmt->fetchColumn() === 0) {
+        $pdo->exec("ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}");
+    }
+}
+
+ensure_column($pdo, 'users', 'terms_accepted_at', 'DATETIME NULL AFTER year_of_birth');
+ensure_column($pdo, 'users', 'terms_version', 'VARCHAR(32) NULL AFTER terms_accepted_at');
+
 $pdo->exec(
 "CREATE TABLE IF NOT EXISTS email_verification_tokens (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

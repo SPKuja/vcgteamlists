@@ -1616,7 +1616,24 @@
     routeTarget:routeTarget,
     markSaved:markSaved,
     hasActiveBuild:function(){return state.activeBuild},
-    isDirty:function(){return state.dirty}
+    isDirty:function(){return state.dirty},
+    deleteAccountCleanup:function(){
+      try{
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+        localStorage.removeItem(LOCAL_SAVE_KEY);
+      }catch(e){}
+      state.game=null;
+      state.sheetMode="full";
+      state.editingIndex=null;
+      state.activeBuild=false;
+      state.dirty=false;
+      state.meta={playerName:"",trainerName:"",playerId:"",yearOfBirth:""};
+      state.team=blankTeam();
+      populateMeta();
+      renderTeam();
+      document.dispatchEvent(new CustomEvent("vcg:buildreset"));
+    }
   };
 
   function init(){

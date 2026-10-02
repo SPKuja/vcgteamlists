@@ -296,10 +296,11 @@
     var password=$("#registerPassword").value;
     if(password!==$("#registerPasswordConfirm").value){message("#authMessage","Passwords do not match.",true);return}
     try{
-      await api("register.php",{method:"POST",body:{email:$("#registerEmail").value.trim(),password:password}});
+      if(!$("#registerTerms").checked){message("#authMessage","Please agree to the Terms & Conditions and acknowledge the Privacy Notice.",true);return}
+      await api("register.php",{method:"POST",body:{email:$("#registerEmail").value.trim(),password:password,acceptTerms:true}});
       var email=$("#registerEmail").value.trim();
       $("#loginEmail").value=email;$("#registeredEmail").textContent=email;
-      $("#registerPassword").value="";$("#registerPasswordConfirm").value="";
+      $("#registerPassword").value="";$("#registerPasswordConfirm").value="";$("#registerTerms").checked=false;
       setPane("registered");
     }catch(err){message("#authMessage",err.message,true)}
   }
@@ -376,6 +377,49 @@
       auth.user=data.user;renderAuth();
       message("#profileMessage","Using Gravatar.");
     }catch(err){message("#profileMessage",err.message,true)}
+  }
+
+  function openDeleteAccount(){
+    message("#deleteAccountMessage","");
+    $("#deleteAccountPassword").value="";
+    $("#deleteAccountConfirm").value="";
+    var dialog=$("#deleteAccountDialog");
+    if(dialog&&typeof dialog.showModal==="function"){
+      dialog.showModal();
+      setTimeout(function(){$("#deleteAccountPassword").focus()},50);
+    }
+  }
+
+  function closeDeleteAccount(){
+    var dialog=$("#deleteAccountDialog");
+    if(dialog&&dialog.open)dialog.close();
+  }
+
+  async function deleteAccount(event){
+    event.preventDefault();
+    var password=$("#deleteAccountPassword").value;
+    var confirmation=$("#deleteAccountConfirm").value.trim();
+    if(confirmation!=="DELETE"){
+      message("#deleteAccountMessage","Type DELETE exactly to confirm account deletion.",true);
+      return;
+    }
+    var button=$("#confirmDeleteAccount");
+    button.disabled=true;button.textContent="Deleting…";
+    try{
+      var loginData=await api("login.php",{method:"POST",body:{email:auth.user.email,password:password}});
+      auth.csrf=loginData.csrf||auth.csrf;
+      await api("delete-account.php",{method:"POST",body:{confirmation:confirmation}});
+      closeDeleteAccount();
+      auth.user=null;auth.teams=[];auth.currentTeamId=null;
+      if(window.VCGApp&&window.VCGApp.deleteAccountCleanup)window.VCGApp.deleteAccountCleanup();
+      await refreshSession();
+      window.VCGApp.navigate("home",{skipBuildGuard:true});
+      if(window.VCGApp)window.VCGApp.toast("Account deleted");
+    }catch(err){
+      message("#deleteAccountMessage",err.message,true);
+    }finally{
+      button.disabled=false;button.textContent="Delete account permanently";
+    }
   }
 
   async function logout(){
@@ -455,6 +499,11 @@
     $("#avatarInput").addEventListener("change",function(e){uploadAvatar(e.target.files&&e.target.files[0])});
     $("#removeAvatarButton").addEventListener("click",removeAvatar);
     $("#logoutButton").addEventListener("click",logout);
+    $("#openDeleteAccount").addEventListener("click",openDeleteAccount);
+    $("#deleteAccountForm").addEventListener("submit",deleteAccount);
+    $("#closeDeleteAccount").addEventListener("click",closeDeleteAccount);
+    $("#cancelDeleteAccount").addEventListener("click",closeDeleteAccount);
+    $("#deleteAccountDialog").addEventListener("click",function(e){if(e.target===this)closeDeleteAccount()});
 
     $("#cloudTeamList").addEventListener("click",function(e){
       var load=e.target.closest("[data-load-team]");if(load){loadTeam(load.dataset.loadTeam);return}

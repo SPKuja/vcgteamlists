@@ -8,10 +8,10 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.7.0">
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.8.0">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
-  <script defer src="/assets/js/app.js?v=0.7.4"></script>
-  <script defer src="/assets/js/auth.js?v=0.4.0"></script>
+  <script defer src="/assets/js/app.js?v=0.8.0"></script>
+  <script defer src="/assets/js/auth.js?v=0.5.0"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -321,6 +321,10 @@
               <label><span>Email</span><input id="registerEmail" type="email" autocomplete="email" required></label>
               <label><span>Password</span><input id="registerPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
               <label><span>Confirm password</span><input id="registerPasswordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+              <label class="legal-consent">
+                <input id="registerTerms" type="checkbox" required>
+                <span>I agree to the <a href="/terms/" target="_blank" rel="noopener">Terms &amp; Conditions</a> and acknowledge the <a href="/privacy/" target="_blank" rel="noopener">Privacy Notice</a>.</span>
+              </label>
               <button class="button primary" type="submit">Create account</button>
             </form>
 
@@ -379,6 +383,15 @@
                 </div>
                 <div class="account-message" id="profileMessage" role="status" aria-live="polite"></div>
 
+                <section class="account-danger-zone">
+                  <div>
+                    <span class="eyebrow">Account</span>
+                    <h2>Delete account</h2>
+                    <p>Permanently delete your account, saved teams, profile details and uploaded avatar.</p>
+                  </div>
+                  <button class="button danger" id="openDeleteAccount" type="button">Delete account</button>
+                </section>
+
                 <section class="play-qr-card" aria-labelledby="playQrTitle">
                   <div class="play-qr-head">
                     <div>
@@ -426,6 +439,23 @@
       <button data-nav="preview"><span>▤</span><small>Preview</small></button>
     </nav>
   </div>
+
+  <dialog class="delete-account-dialog" id="deleteAccountDialog" aria-labelledby="deleteAccountTitle">
+    <form class="delete-account-modal" id="deleteAccountForm">
+      <header>
+        <div><span class="eyebrow">Permanent action</span><h2 id="deleteAccountTitle">Delete your account?</h2></div>
+        <button class="icon-button" id="closeDeleteAccount" type="button" aria-label="Close delete account dialog">×</button>
+      </header>
+      <p>This permanently deletes your profile, saved teams and uploaded avatar. This cannot be undone.</p>
+      <label><span>Password</span><input id="deleteAccountPassword" type="password" autocomplete="current-password" required></label>
+      <label><span>Type DELETE to confirm</span><input id="deleteAccountConfirm" autocomplete="off" required></label>
+      <div class="account-message" id="deleteAccountMessage" role="status" aria-live="polite"></div>
+      <div class="delete-account-actions">
+        <button class="button secondary" id="cancelDeleteAccount" type="button">Cancel</button>
+        <button class="button danger" id="confirmDeleteAccount" type="submit">Delete account permanently</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog class="new-team-dialog" id="newTeamDialog" aria-labelledby="newTeamDialogTitle">
     <div class="new-team-modal">
