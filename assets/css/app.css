@@ -2042,3 +2042,8 @@ html.editor-open,body.editor-open{
   .tcg-deck-card{grid-template-columns:40px minmax(0,1fr)}.tcg-qty{grid-column:1/-1;justify-content:flex-end;border-top:1px solid var(--line);padding-top:6px}
 }
 @media(max-width:410px){.tcg-search-results{grid-template-columns:1fr}}
+
+.tcg-image-unavailable{display:grid;place-items:center;background:linear-gradient(145deg,#f3f4f8,#e9ebf2);border:1px dashed #cfd2dc;border-radius:6px;color:var(--muted);text-align:center;overflow:hidden}
+.tcg-image-unavailable span{font-size:7px;font-weight:850;line-height:1.15;padding:4px}
+.tcg-search-result>.tcg-image-unavailable{width:54px;height:74px}
+.tcg-deck-card>.tcg-image-unavailable{width:44px;height:61px}

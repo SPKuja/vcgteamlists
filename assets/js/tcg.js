@@ -11,9 +11,33 @@
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
   function esc(value){return String(value==null?"":value).replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[ch]})}
-  function imageUrl(base,quality){
+  function imageUrl(base,quality,extension){
     if(!base)return "";
-    return String(base).replace(/\/$/,"")+"/"+(quality||"low")+".webp";
+    return String(base).replace(/\/$/,"")+"/"+(quality||"low")+"."+(extension||"webp");
+  }
+  function cardImageHtml(base,alt){
+    if(!base)return '<div class="tcg-image-unavailable" aria-label="Card image unavailable"><span>Image unavailable</span></div>';
+    return '<img class="tcg-card-image" src="'+esc(imageUrl(base,"low","webp"))+'" data-tcg-image-base="'+esc(base)+'" data-tcg-image-step="0" alt="'+esc(alt||"")+'">';
+  }
+  function handleCardImageError(img){
+    var base=img&&img.dataset?img.dataset.tcgImageBase:"";
+    if(!base)return;
+    var step=Number(img.dataset.tcgImageStep||0)+1;
+    var fallbacks=[
+      imageUrl(base,"low","png"),
+      imageUrl(base,"high","webp"),
+      imageUrl(base,"high","png")
+    ];
+    if(step<=fallbacks.length){
+      img.dataset.tcgImageStep=String(step);
+      img.src=fallbacks[step-1];
+      return;
+    }
+    var placeholder=document.createElement("div");
+    placeholder.className="tcg-image-unavailable";
+    placeholder.setAttribute("aria-label","Card image unavailable");
+    placeholder.innerHTML="<span>Image unavailable</span>";
+    img.replaceWith(placeholder);
   }
   function normaliseCard(card){
     return {
@@ -98,7 +122,7 @@
     var meta=[card.setName,card.localId?"#"+card.localId:"",card.regulationMark?"Reg. "+card.regulationMark:""].filter(Boolean).join(" · ");
     var flag=card.legal&&card.legal.standard===false?'<span class="tcg-standard-flag">CHECK</span>':"";
     return '<article class="tcg-deck-card" data-tcg-deck-card="'+esc(card.id)+'">'+
-      (card.image?'<img src="'+esc(imageUrl(card.image,"low"))+'" alt="">':'<div></div>')+
+      cardImageHtml(card.image,card.name)+
       '<div class="tcg-deck-card-copy"><strong>'+esc(card.name)+flag+'</strong><small>'+esc(meta||card.category)+'</small></div>'+
       '<div class="tcg-qty">'+
         '<button type="button" data-tcg-dec="'+esc(card.id)+'" aria-label="Remove one '+esc(card.name)+'">−</button>'+
@@ -234,7 +258,7 @@
     }
     target.innerHTML=cards.map(function(card){
       return '<button type="button" class="tcg-search-result" data-tcg-card="'+esc(card.id)+'">'+
-        (card.image?'<img src="'+esc(imageUrl(card.image,"low"))+'" alt="">':'<div></div>')+
+        cardImageHtml(card.image,card.name)+
         '<span class="tcg-search-result-copy"><strong>'+esc(card.name)+'</strong><small>'+esc(card.id)+' · #'+esc(card.localId)+'</small></span>'+
       '</button>';
     }).join("");
@@ -348,6 +372,9 @@
       }
     });
     $$("[data-select-deck]").forEach(function(button){button.addEventListener("click",openDeck)});
+    document.addEventListener("error",function(e){
+      if(e.target&&e.target.matches&&e.target.matches(".tcg-card-image"))handleCardImageError(e.target);
+    },true);
     document.addEventListener("vcg:navigate",function(e){if(e.detail&&e.detail.target==="deck")renderDeck()});
     renderDeck();
   }
