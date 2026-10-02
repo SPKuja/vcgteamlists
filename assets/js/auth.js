@@ -7,6 +7,10 @@
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
   function esc(value){return String(value==null?"":value).replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[ch]})}
 
+  function shouldAutoFocus(){
+    return !window.matchMedia || window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  }
+
   function message(target,text,isError){
     var el=$(target);if(!el)return;
     el.textContent=text||"";
@@ -244,7 +248,7 @@
     var dialog=$("#saveTeamDialog");
     if(dialog&&typeof dialog.showModal==="function"){
       dialog.showModal();
-      setTimeout(function(){$("#saveTeamName").focus();$("#saveTeamName").select()},50);
+      if(shouldAutoFocus())setTimeout(function(){$("#saveTeamName").focus();$("#saveTeamName").select()},50);
     }
   }
 
@@ -386,7 +390,7 @@
     var dialog=$("#deleteAccountDialog");
     if(dialog&&typeof dialog.showModal==="function"){
       dialog.showModal();
-      setTimeout(function(){$("#deleteAccountPassword").focus()},50);
+      if(shouldAutoFocus())setTimeout(function(){$("#deleteAccountPassword").focus()},50);
     }
   }
 

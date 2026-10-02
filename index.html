@@ -10,8 +10,8 @@
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/css/app.css?v=0.8.0">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
-  <script defer src="/assets/js/app.js?v=0.8.0"></script>
-  <script defer src="/assets/js/auth.js?v=0.5.0"></script>
+  <script defer src="/assets/js/app.js?v=0.8.1"></script>
+  <script defer src="/assets/js/auth.js?v=0.5.1"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -383,15 +383,6 @@
                 </div>
                 <div class="account-message" id="profileMessage" role="status" aria-live="polite"></div>
 
-                <section class="account-danger-zone">
-                  <div>
-                    <span class="eyebrow">Account</span>
-                    <h2>Delete account</h2>
-                    <p>Permanently delete your account, saved teams, profile details and uploaded avatar.</p>
-                  </div>
-                  <button class="button danger" id="openDeleteAccount" type="button">Delete account</button>
-                </section>
-
                 <section class="play-qr-card" aria-labelledby="playQrTitle">
                   <div class="play-qr-head">
                     <div>
@@ -423,6 +414,15 @@
                     <strong>Experimental</strong>
                     <span>This reproduces the QR payload format we’ve decoded, but it has not yet been verified with enough official codes to rely on for tournament check-in. Keep the official Access app available as a fallback.</span>
                   </div>
+                </section>
+
+                <section class="account-danger-zone">
+                  <div>
+                    <span class="eyebrow">Account</span>
+                    <h2>Delete account</h2>
+                    <p>Permanently delete your account, saved teams, profile details and uploaded avatar.</p>
+                  </div>
+                  <button class="button danger" id="openDeleteAccount" type="button">Delete account</button>
                 </section>
               </div>
             </div>

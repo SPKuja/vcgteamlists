@@ -63,6 +63,10 @@
   function blankMon(){
     return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",alignmentUp:"",alignmentDown:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""]};
   }
+  function shouldAutoFocus(){
+    return !window.matchMedia || window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  }
+
   function showToast(message){
     var el=$("#toast");el.textContent=message;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.classList.remove("show")},2200);
   }
@@ -421,7 +425,7 @@
       ensureResourceList("nature"),
       ensureResourceList("move")
     ]).catch(function(){});
-    setTimeout(function(){$("#pokemonSearch").focus()},180);
+    if(shouldAutoFocus())setTimeout(function(){$("#pokemonSearch").focus()},180);
   }
 
   function closeEditor(){
@@ -1456,7 +1460,7 @@
       :"Importing replaces the current six Pokémon. EVs and IVs are used to calculate final stats with standard main-series formulas.";
     if(dialog&&typeof dialog.showModal==="function"){
       dialog.showModal();
-      setTimeout(function(){$("#showdownText").focus()},60);
+      if(shouldAutoFocus())setTimeout(function(){$("#showdownText").focus()},60);
     }
   }
 
