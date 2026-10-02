@@ -1182,7 +1182,7 @@
     await Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed),hydrateNatureMeta(completed)]);
     renderPreview(true);
     var preview=$("#screenPreview");
-    await Promise.all($("img",preview).map(waitForImage));
+    await Promise.all($$("img",preview).map(waitForImage));
     if(document.fonts&&document.fonts.ready){try{await document.fonts.ready}catch(e){}}
     await ensurePdfLibraries();
     var canvas=await window.html2canvas(preview,{scale:2,useCORS:true,backgroundColor:"#ffffff",logging:false});
