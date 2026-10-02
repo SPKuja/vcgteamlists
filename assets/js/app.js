@@ -1150,25 +1150,84 @@
     showToast("Showdown team downloaded");
   }
 
+  function withTimeout(promise,ms,message){
+    return Promise.race([
+      promise,
+      new Promise(function(_,reject){
+        setTimeout(function(){reject(new Error(message||"Timed out"))},ms);
+      })
+    ]);
+  }
+
   function loadExternalScript(src,test){
     if(test())return Promise.resolve();
     return new Promise(function(resolve,reject){
-      var existing=document.querySelector('script[data-runtime-src="'+src+'"]');
-      if(existing){
-        existing.addEventListener("load",resolve,{once:true});
-        existing.addEventListener("error",reject,{once:true});
+      var settled=false;
+      var script=document.querySelector('script[data-runtime-src="'+src+'"]');
+
+      function finish(ok){
+        if(settled)return;
+        settled=true;
+        clearTimeout(timer);
+        if(ok&&test())resolve();
+        else reject(new Error("Could not load PDF tools"));
+      }
+
+      if(script&&script.dataset.runtimeStatus==="loaded"){
+        finish(test());
         return;
       }
-      var script=document.createElement("script");
-      script.src=src;script.async=true;script.dataset.runtimeSrc=src;
-      script.onload=resolve;script.onerror=reject;
-      document.head.appendChild(script);
+      if(script&&script.dataset.runtimeStatus==="failed"){
+        script.remove();
+        script=null;
+      }
+      if(!script){
+        script=document.createElement("script");
+        script.src=src;
+        script.async=true;
+        script.dataset.runtimeSrc=src;
+        script.dataset.runtimeStatus="loading";
+        document.head.appendChild(script);
+      }
+
+      script.addEventListener("load",function(){
+        script.dataset.runtimeStatus="loaded";
+        finish(true);
+      },{once:true});
+      script.addEventListener("error",function(){
+        script.dataset.runtimeStatus="failed";
+        finish(false);
+      },{once:true});
+
+      var timer=setTimeout(function(){
+        if(script)script.dataset.runtimeStatus="failed";
+        finish(false);
+      },7000);
     });
   }
 
+  async function loadFirstAvailable(sources,test){
+    if(test())return;
+    var lastError=null;
+    for(var i=0;i<sources.length;i++){
+      try{
+        await loadExternalScript(sources[i],test);
+        if(test())return;
+      }catch(err){lastError=err}
+    }
+    throw lastError||new Error("Could not load PDF tools");
+  }
+
   async function ensurePdfLibraries(){
-    await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",function(){return typeof window.html2canvas==="function"});
-    await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js",function(){return !!(window.jspdf&&window.jspdf.jsPDF)});
+    await loadFirstAvailable([
+      "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
+    ],function(){return typeof window.html2canvas==="function"});
+
+    await loadFirstAvailable([
+      "https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js",
+      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"
+    ],function(){return !!(window.jspdf&&window.jspdf.jsPDF)});
   }
 
   function safeTeamFilename(){
@@ -1176,23 +1235,60 @@
     return (base||"VGC Team")+" - Team List.pdf";
   }
 
-  async function createTeamPdfFile(){
+  async function createTeamPdfFile(onProgress){
     var completed=state.team.filter(function(m){return m&&m.name});
     if(!completed.length)throw new Error("Add at least one Pokémon before sharing");
-    await Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed),hydrateNatureMeta(completed)]);
+
+    if(onProgress)onProgress("Preparing team…");
+    try{
+      await withTimeout(
+        Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed),hydrateNatureMeta(completed)]),
+        9000,
+        "Team data took too long to prepare"
+      );
+    }catch(err){
+      console.warn("PDF metadata preparation timed out",err);
+    }
+
     renderPreview(true);
     var preview=$("#screenPreview");
-    await Promise.all($$("img",preview).map(waitForImage));
-    if(document.fonts&&document.fonts.ready){try{await document.fonts.ready}catch(e){}}
-    await ensurePdfLibraries();
-    var canvas=await window.html2canvas(preview,{scale:2,useCORS:true,backgroundColor:"#ffffff",logging:false});
+
+    if(onProgress)onProgress("Loading images…");
+    await withTimeout(
+      Promise.all($("img",preview).map(waitForImage)),
+      6500,
+      "Images took too long to prepare"
+    ).catch(function(err){console.warn("PDF image wait timed out",err)});
+
+    if(document.fonts&&document.fonts.ready){
+      await withTimeout(document.fonts.ready,2500,"Fonts took too long to load").catch(function(){});
+    }
+
+    if(onProgress)onProgress("Loading PDF tools…");
+    await withTimeout(ensurePdfLibraries(),16000,"PDF tools could not be loaded");
+
+    if(onProgress)onProgress("Rendering PDF…");
+    var scale=window.innerWidth<700?1.5:2;
+    var canvas=await withTimeout(
+      window.html2canvas(preview,{
+        scale:scale,
+        useCORS:true,
+        allowTaint:false,
+        imageTimeout:5000,
+        backgroundColor:"#ffffff",
+        logging:false
+      }),
+      18000,
+      "PDF rendering took too long"
+    );
+
     var jsPDF=window.jspdf.jsPDF;
     var pdf=new jsPDF({orientation:"portrait",unit:"mm",format:"a4",compress:true});
     var pageWidth=210,pageHeight=297,margin=7;
     var ratio=Math.min((pageWidth-margin*2)/canvas.width,(pageHeight-margin*2)/canvas.height);
     var width=canvas.width*ratio,height=canvas.height*ratio;
     var x=(pageWidth-width)/2,y=(pageHeight-height)/2;
-    pdf.addImage(canvas.toDataURL("image/jpeg",0.94),"JPEG",x,y,width,height,undefined,"FAST");
+    pdf.addImage(canvas.toDataURL("image/jpeg",0.92),"JPEG",x,y,width,height,undefined,"FAST");
     var blob=pdf.output("blob");
     return new File([blob],safeTeamFilename(),{type:"application/pdf"});
   }
@@ -1203,7 +1299,7 @@
     var button=$("#shareButton"),original=button?button.textContent:"Share PDF";
     if(button){button.disabled=true;button.textContent="Preparing PDF…"}
     try{
-      var file=await createTeamPdfFile();
+      var file=await createTeamPdfFile(function(label){if(button)button.textContent=label});
       if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){
         await navigator.share({title:"VGC Team List",text:gameConfig[state.game].name,files:[file]});
         showToast("Team PDF shared");
