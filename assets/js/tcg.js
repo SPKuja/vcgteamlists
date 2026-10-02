@@ -8,6 +8,7 @@
   var searchAbort=null;
   var setMetaCache={};
   var setCodeCache={};
+  var previewCard=null;
 
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
@@ -16,19 +17,19 @@
     if(!base)return "";
     return String(base).replace(/\/$/,"")+"/"+(quality||"low")+"."+(extension||"webp");
   }
-  function cardImageHtml(base,alt){
+  function cardImageHtml(base,alt,quality){
     if(!base)return '<div class="tcg-image-unavailable" aria-label="Card image unavailable"><span>Image unavailable</span></div>';
-    return '<img class="tcg-card-image" src="'+esc(imageUrl(base,"low","webp"))+'" data-tcg-image-base="'+esc(base)+'" data-tcg-image-step="0" alt="'+esc(alt||"")+'">';
+    var preferred=quality==="high"?"high":"low";
+    return '<img class="tcg-card-image" loading="lazy" src="'+esc(imageUrl(base,preferred,"webp"))+'" data-tcg-image-base="'+esc(base)+'" data-tcg-image-quality="'+preferred+'" data-tcg-image-step="0" alt="'+esc(alt||"")+'">';
   }
   function handleCardImageError(img){
     var base=img&&img.dataset?img.dataset.tcgImageBase:"";
     if(!base)return;
     var step=Number(img.dataset.tcgImageStep||0)+1;
-    var fallbacks=[
-      imageUrl(base,"low","png"),
-      imageUrl(base,"high","webp"),
-      imageUrl(base,"high","png")
-    ];
+    var preferred=img.dataset.tcgImageQuality==="high"?"high":"low";
+    var fallbacks=preferred==="high"
+      ? [imageUrl(base,"high","png"),imageUrl(base,"low","webp"),imageUrl(base,"low","png")]
+      : [imageUrl(base,"low","png"),imageUrl(base,"high","webp"),imageUrl(base,"high","png")];
     if(step<=fallbacks.length){
       img.dataset.tcgImageStep=String(step);
       img.src=fallbacks[step-1];
@@ -47,8 +48,11 @@
       category:String(card.category||"Other"),
       energyType:String(card.energyType||""),
       trainerType:String(card.trainerType||""),
-      setId:String(card.set&&card.set.id||card.setId||""),
-      setName:String(card.set&&card.set.name||card.setName||""),
+      setId:String(card.set&&card.set.id||card.setId||card._setId||""),
+      setName:String(card._setName||card.set&&card.set.name||card.setName||""),
+      setCode:String(card._setCode||card.setCode||""),
+      setOfficialCount:Number(card._setOfficialCount||card.setOfficialCount||0)||0,
+      setReleaseDate:String(card._setReleaseDate||card.setReleaseDate||""),
       localId:String(card.localId==null?"":card.localId),
       image:String(card.image||""),
       regulationMark:String(card.regulationMark||""),
@@ -128,7 +132,8 @@
     });
   }
   function deckCardHtml(card){
-    var meta=[card.setName,card.localId?"#"+card.localId:"",card.regulationMark?"Reg. "+card.regulationMark:""].filter(Boolean).join(" · ");
+    var reference=card.localId?(card.setCode?card.setCode+" ":"")+card.localId:"";
+    var meta=[reference,card.setName,card.regulationMark?"Reg. "+card.regulationMark:""].filter(Boolean).join(" · ");
     var flag=card.legal&&card.legal.standard===false?'<span class="tcg-standard-flag">CHECK</span>':"";
     return '<article class="tcg-deck-card" data-tcg-deck-card="'+esc(card.id)+'">'+
       cardImageHtml(card.image,card.name)+
@@ -190,6 +195,9 @@
     return joined?{code:normaliseSetCode(joined[1]),localId:joined[2]}:null;
   }
   function cardSetId(card){
+    if(card&&card.set&&card.set.id)return String(card.set.id);
+    if(card&&card.setId)return String(card.setId);
+    if(card&&card._setId)return String(card._setId);
     var id=String(card&&card.id||"");
     var local=String(card&&card.localId||"");
     var suffix="-"+local;
@@ -204,6 +212,44 @@
     var data=await response.json();
     setMetaCache[setId]=data;
     return data;
+  }
+  function officialSetCode(set){
+    if(!set)return "";
+    return String(
+      set.abbreviation&&set.abbreviation.official||
+      set.abbreviations&&set.abbreviations.official||
+      set.tcgOnline||
+      ""
+    ).toUpperCase();
+  }
+  function decorateCardWithSet(card,set){
+    if(!card)return card;
+    var setId=set&&set.id||cardSetId(card);
+    card._setId=String(setId||"");
+    card._setName=String(set&&set.name||card.set&&card.set.name||"");
+    card._setCode=officialSetCode(set);
+    card._setOfficialCount=Number(set&&set.cardCount&&set.cardCount.official||0)||0;
+    card._setReleaseDate=String(set&&set.releaseDate||"");
+    return card;
+  }
+  async function enrichCards(cards,signal){
+    cards=Array.isArray(cards)?cards:[];
+    var ids=[];
+    cards.forEach(function(card){
+      var id=cardSetId(card);
+      if(id&&ids.indexOf(id)===-1)ids.push(id);
+    });
+    var metas=await Promise.all(ids.map(function(id){return getSetMeta(id,signal)}));
+    var byId={};
+    metas.forEach(function(set,index){if(set)byId[ids[index]]=set});
+    return cards.map(function(card){return decorateCardWithSet(card,byId[cardSetId(card)])});
+  }
+  function cardReferenceText(card){
+    var code=String(card._setCode||card.setCode||"");
+    var local=String(card.localId||"");
+    var setName=String(card._setName||card.setName||card.set&&card.set.name||"");
+    var reference=[code,local].filter(Boolean).join(" ");
+    return [reference,setName].filter(Boolean).join(" · ");
   }
   function setMatchesCode(set,code){
     if(!set)return false;
@@ -286,11 +332,36 @@
       return;
     }
     target.innerHTML=cards.map(function(card){
-      return '<button type="button" class="tcg-search-result" data-tcg-card="'+esc(card.id)+'">'+
+      return '<button type="button" class="tcg-search-result" data-tcg-card="'+esc(card.id)+'" aria-label="Preview '+esc(card.name)+'">'+
         cardImageHtml(card.image,card.name)+
-        '<span class="tcg-search-result-copy"><strong>'+esc(card.name)+'</strong><small>'+esc(card.id)+' · #'+esc(card.localId)+'</small></span>'+
+        '<span class="tcg-search-result-copy"><strong>'+esc(card.name)+'</strong><small>'+esc(cardReferenceText(card))+'</small></span>'+
+        '<span class="tcg-search-preview-cue">View <b>›</b></span>'+
       '</button>';
     }).join("");
+  }
+  function sortByNewest(cards){
+    return cards.sort(function(a,b){
+      var dateCompare=String(b._setReleaseDate||"").localeCompare(String(a._setReleaseDate||""));
+      if(dateCompare)return dateCompare;
+      return String(a.localId||"").localeCompare(String(b.localId||""),undefined,{numeric:true});
+    });
+  }
+  function sortSetCards(cards,setId){
+    return cards.sort(function(a,b){
+      var aSet=cardSetId(a)===setId?0:1;
+      var bSet=cardSetId(b)===setId?0:1;
+      if(aSet!==bSet)return aSet-bSet;
+      if(aSet===0)return String(a.localId||"").localeCompare(String(b.localId||""),undefined,{numeric:true});
+      return String(b._setReleaseDate||"").localeCompare(String(a._setReleaseDate||""));
+    });
+  }
+  function mergeCards(primary,secondary){
+    var out=[],seen={};
+    (primary||[]).concat(secondary||[]).forEach(function(card){
+      if(!card||!card.id||seen[card.id])return;
+      seen[card.id]=true;out.push(card);
+    });
+    return out;
   }
   async function search(query){
     var q=String(query||"").trim();
@@ -309,32 +380,57 @@
       var cards;
       if(reference){
         cards=await searchCardReference(reference,searchAbort.signal);
+        cards=await enrichCards(cards,searchAbort.signal);
         renderSearchResults(cards);
         setStatus(cards.length
           ?"Found "+cards.length+" card"+(cards.length===1?"":"s")+" for "+reference.code+" "+reference.localId+"."
           :"No card found for "+reference.code+" "+reference.localId+".");
         return;
       }
-      var url=API+"/cards?name="+encodeURIComponent(q)+"&sort:field=releaseDate&sort:order=DESC&pagination:page=1&pagination:itemsPerPage=24";
-      var response=await fetch(url,{signal:searchAbort.signal,cache:"default"});
-      if(!response.ok)throw new Error("Card search failed");
-      cards=await response.json();
-      cards=Array.isArray(cards)?cards:[];
+
+      var nameUrl=API+"/cards?name="+encodeURIComponent(q)+"&pagination:page=1&pagination:itemsPerPage=24";
+      var namePromise=fetch(nameUrl,{signal:searchAbort.signal,cache:"default"}).then(function(response){
+        if(!response.ok)throw new Error("Card search failed");
+        return response.json();
+      }).then(function(found){return Array.isArray(found)?found:[]});
+
+      var possibleCode=/^[A-Za-z0-9]{2,8}$/.test(q)?normaliseSetCode(q):"";
+      var setIdPromise=possibleCode?resolveSetIdByCode(possibleCode,searchAbort.signal):Promise.resolve("");
+      var pair=await Promise.all([namePromise,setIdPromise]);
+      var nameCards=pair[0],setId=pair[1],setCards=[],matchedSet=null;
+
+      if(setId){
+        matchedSet=await getSetMeta(setId,searchAbort.signal);
+        setCards=matchedSet&&Array.isArray(matchedSet.cards)?matchedSet.cards.slice():[];
+      }
+
+      cards=mergeCards(setCards,nameCards);
+      cards=await enrichCards(cards,searchAbort.signal);
+      cards=setId?sortSetCards(cards,setId):sortByNewest(cards);
       renderSearchResults(cards);
-      setStatus(cards.length?"Showing "+cards.length+" matching printing"+(cards.length===1?"":"s")+" — newest first.":"No matching cards found.");
+
+      if(setId&&matchedSet){
+        setStatus("Showing "+cards.length+" result"+(cards.length===1?"":"s")+" for "+officialSetCode(matchedSet)+" · "+matchedSet.name+".");
+      }else{
+        setStatus(cards.length?"Showing "+cards.length+" matching printing"+(cards.length===1?"":"s")+" — newest first.":"No matching cards found.");
+      }
     }catch(err){
       if(err&&err.name==="AbortError")return;
       setStatus("Card search is temporarily unavailable.");
       if(target)target.innerHTML='<div class="tcg-search-empty">Could not load cards. Try again.</div>';
     }
   }
-  async function addCard(id){
+  async function addCard(id,cardData){
     if(!id)return;
     setStatus("Adding card…");
     try{
-      var response=await fetch(API+"/cards/"+encodeURIComponent(id),{cache:"default"});
-      if(!response.ok)throw new Error("Card lookup failed");
-      var full=await response.json();
+      var full=cardData||null;
+      if(!full){
+        var response=await fetch(API+"/cards/"+encodeURIComponent(id),{cache:"default"});
+        if(!response.ok)throw new Error("Card lookup failed");
+        full=await response.json();
+      }
+      full=(await enrichCards([full]))[0]||full;
       var existing=state.cards.filter(function(card){return card.id===id})[0];
       if(existing)existing.qty=Math.min(60,existing.qty+1);
       else state.cards.push(normaliseCard(full));
@@ -343,6 +439,79 @@
     }catch(err){
       setStatus("Could not add that card. Try again.");
     }
+  }
+  function renderCardPreview(card){
+    var image=$("#tcgPreviewImage");
+    if(image)image.innerHTML=cardImageHtml(card.image,card.name,"high");
+    if($("#tcgPreviewName"))$("#tcgPreviewName").textContent=card.name||"Card";
+    if($("#tcgPreviewReference"))$("#tcgPreviewReference").textContent=cardReferenceText(card)||"Set information unavailable";
+    var details=[];
+    if(card.category)details.push(card.category==="Pokemon"?"Pokémon":card.category);
+    if(card.trainerType)details.push(card.trainerType);
+    if(card.energyType)details.push(card.energyType+" Energy");
+    if(card.regulationMark)details.push("Regulation "+card.regulationMark);
+    if($("#tcgPreviewDetails"))$("#tcgPreviewDetails").textContent=details.join(" · ")||"";
+    var legality=$("#tcgPreviewLegality");
+    if(legality){
+      if(card.legal&&card.legal.standard===true){
+        legality.className="tcg-preview-legality is-legal";
+        legality.textContent="This printing is marked Standard legal.";
+      }else if(card.legal&&card.legal.standard===false){
+        legality.className="tcg-preview-legality is-review";
+        legality.textContent="Review Standard legality — an older printing may still be usable if an equivalent legal reprint exists.";
+      }else{
+        legality.className="tcg-preview-legality";
+        legality.textContent="Standard legality data unavailable for this printing.";
+      }
+    }
+  }
+  async function openCardPreview(id){
+    if(!id)return;
+    var dialog=$("#tcgCardPreviewDialog");if(!dialog)return;
+    previewCard=null;
+    if($("#tcgPreviewName"))$("#tcgPreviewName").textContent="Loading card…";
+    if($("#tcgPreviewReference"))$("#tcgPreviewReference").textContent="";
+    if($("#tcgPreviewDetails"))$("#tcgPreviewDetails").textContent="";
+    if($("#tcgPreviewImage"))$("#tcgPreviewImage").innerHTML='<div class="tcg-preview-loading">Loading artwork…</div>';
+    if($("#tcgPreviewAdd"))$("#tcgPreviewAdd").disabled=true;
+    if(typeof dialog.showModal==="function"&&!dialog.open)dialog.showModal();
+    try{
+      var response=await fetch(API+"/cards/"+encodeURIComponent(id),{cache:"default"});
+      if(!response.ok)throw new Error("Card lookup failed");
+      var full=await response.json();
+      previewCard=(await enrichCards([full]))[0]||full;
+      renderCardPreview(previewCard);
+      if($("#tcgPreviewAdd"))$("#tcgPreviewAdd").disabled=false;
+    }catch(err){
+      if($("#tcgPreviewName"))$("#tcgPreviewName").textContent="Could not load card";
+      if($("#tcgPreviewReference"))$("#tcgPreviewReference").textContent="Close this preview and try again.";
+    }
+  }
+  function closeCardPreview(){
+    var dialog=$("#tcgCardPreviewDialog");
+    if(dialog&&dialog.open)dialog.close();
+    previewCard=null;
+  }
+  async function hydrateStoredSetInfo(){
+    var ids=[];
+    state.cards.forEach(function(card){if(card.setId&&ids.indexOf(card.setId)===-1)ids.push(card.setId)});
+    if(!ids.length)return;
+    var metas=await Promise.all(ids.map(function(id){return getSetMeta(id)}));
+    var byId={};metas.forEach(function(set,index){if(set)byId[ids[index]]=set});
+    var changed=false;
+    state.cards.forEach(function(card){
+      var set=byId[card.setId];if(!set)return;
+      var code=officialSetCode(set);
+      var count=Number(set.cardCount&&set.cardCount.official||0)||0;
+      if(card.setCode!==code||card.setName!==set.name||card.setOfficialCount!==count||card.setReleaseDate!==String(set.releaseDate||"")){
+        card.setCode=code;
+        card.setName=String(set.name||card.setName||"");
+        card.setOfficialCount=count;
+        card.setReleaseDate=String(set.releaseDate||"");
+        changed=true;
+      }
+    });
+    if(changed)renderDeck();
   }
   function changeQty(id,delta){
     var card=state.cards.filter(function(item){return item.id===id})[0];
@@ -380,7 +549,7 @@
     var results=$("#tcgSearchResults");
     if(results)results.addEventListener("click",function(e){
       var hit=e.target.closest("[data-tcg-card]");
-      if(hit)addCard(hit.dataset.tcgCard);
+      if(hit)openCardPreview(hit.dataset.tcgCard);
     });
     var groups=$("#tcgDeckGroups");
     if(groups)groups.addEventListener("click",function(e){
@@ -400,12 +569,21 @@
         setStatus("Deck cleared.");
       }
     });
+    var previewDialog=$("#tcgCardPreviewDialog");
+    if($("#tcgPreviewClose"))$("#tcgPreviewClose").addEventListener("click",closeCardPreview);
+    if($("#tcgPreviewCancel"))$("#tcgPreviewCancel").addEventListener("click",closeCardPreview);
+    if($("#tcgPreviewAdd"))$("#tcgPreviewAdd").addEventListener("click",function(){
+      if(!previewCard)return;
+      addCard(previewCard.id,previewCard).then(closeCardPreview);
+    });
+    if(previewDialog)previewDialog.addEventListener("click",function(e){if(e.target===this)closeCardPreview()});
     $$("[data-select-deck]").forEach(function(button){button.addEventListener("click",openDeck)});
     document.addEventListener("error",function(e){
       if(e.target&&e.target.matches&&e.target.matches(".tcg-card-image"))handleCardImageError(e.target);
     },true);
     document.addEventListener("vcg:navigate",function(e){if(e.detail&&e.detail.target==="deck")renderDeck()});
     renderDeck();
+    hydrateStoredSetInfo().catch(function(){});
   }
 
   document.addEventListener("DOMContentLoaded",init);
