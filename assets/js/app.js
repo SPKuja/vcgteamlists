@@ -37,6 +37,7 @@
   var statsLoadedAt=0;
   var statsLoading=false;
   var toastTimer=null;
+  var editorScrollLockY=0;
 
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
@@ -81,6 +82,30 @@
   }
   function shouldAutoFocus(){
     return !window.matchMedia || window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  }
+
+  function lockEditorPageScroll(){
+    editorScrollLockY=window.scrollY||window.pageYOffset||0;
+    document.documentElement.classList.add("editor-open");
+    document.body.classList.add("editor-open");
+    document.body.style.position="fixed";
+    document.body.style.top="-"+editorScrollLockY+"px";
+    document.body.style.left="0";
+    document.body.style.right="0";
+    document.body.style.width="100%";
+    document.body.style.overflow="hidden";
+  }
+
+  function unlockEditorPageScroll(){
+    document.documentElement.classList.remove("editor-open");
+    document.body.classList.remove("editor-open");
+    document.body.style.position="";
+    document.body.style.top="";
+    document.body.style.left="";
+    document.body.style.right="";
+    document.body.style.width="";
+    document.body.style.overflow="";
+    window.scrollTo(0,editorScrollLockY);
   }
 
   function goLeagueInfo(){
@@ -571,7 +596,7 @@
     }
     $("#removePokemonButton").style.visibility=mon.name?"visible":"hidden";
     $("#editorBackdrop").hidden=false;
-    document.body.style.overflow="hidden";
+    lockEditorPageScroll();
     (state.game==="go"
       ? ensureGoData()
       : Promise.all([ensureResourceList("ability"),ensureResourceList("item"),ensureResourceList("nature"),ensureResourceList("move")])
@@ -580,7 +605,10 @@
   }
 
   function closeEditor(){
-    $("#editorBackdrop").hidden=true;$("#pokemonResults").hidden=true;closeFieldResults();document.body.style.overflow="";
+    $("#editorBackdrop").hidden=true;
+    $("#pokemonResults").hidden=true;
+    closeFieldResults();
+    unlockEditorPageScroll();
   }
 
   function renderFormSelector(mon){

@@ -1902,3 +1902,25 @@ body[data-game="go"]{--accent:#168bd2;--accent-2:#52c878;--accent-rgb:22,139,210
   .go-print-copy ul{display:grid;grid-template-columns:repeat(3,1fr);gap:2mm;margin:0;padding:0;list-style:none}
   .go-print-copy li{padding:2mm;border:.5pt solid #ddd;border-radius:1.5mm;font-size:8pt;font-weight:700}
 }
+
+/* Keep mobile sheet scrolling contained inside the Pokémon editor */
+html.editor-open,body.editor-open{
+  overscroll-behavior:none;
+}
+.editor-backdrop{
+  overflow:hidden;
+  overscroll-behavior:none;
+  touch-action:none;
+}
+.editor-sheet{
+  min-height:0;
+  overscroll-behavior:contain;
+  touch-action:pan-y;
+}
+.editor-scroll{
+  min-height:0;
+  flex:1 1 auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-y;
+}
