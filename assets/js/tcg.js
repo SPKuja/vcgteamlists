@@ -6,6 +6,7 @@
   var state={name:"",cards:[]};
   var searchTimer=null;
   var searchAbort=null;
+  var setMetaCache={};
 
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
@@ -129,6 +130,102 @@
   function setStatus(message){
     var el=$("#tcgSearchStatus");if(el)el.textContent=message;
   }
+  function normaliseSetCode(value){
+    return String(value||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  }
+  function comparableCollector(value){
+    var raw=String(value||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    return raw.replace(/^([A-Z]*?)0+(?=\d)/,"$1");
+  }
+  function collectorVariants(value){
+    var raw=String(value||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    var out=[raw];
+    if(/^\d+$/.test(raw)){
+      var number=String(Number(raw));
+      out.push(number);
+      if(number.length<=2)out.push(number.padStart(2,"0"));
+      if(number.length<=3)out.push(number.padStart(3,"0"));
+    }
+    return out.filter(function(item,index){return item&&out.indexOf(item)===index});
+  }
+  function parseCardReference(query){
+    var raw=String(query||"").trim().toUpperCase().replace(/[-_/]+/g," ").replace(/\s+/g," ");
+    var spaced=raw.match(/^([A-Z0-9]{2,8})\s+([A-Z]*\d+[A-Z]*)$/);
+    if(spaced)return {code:normaliseSetCode(spaced[1]),localId:spaced[2]};
+    var compact=raw.replace(/\s/g,"");
+    var joined=compact.match(/^([A-Z]{2,8}?)(\d+[A-Z]?)$/);
+    return joined?{code:normaliseSetCode(joined[1]),localId:joined[2]}:null;
+  }
+  function cardSetId(card){
+    var id=String(card&&card.id||"");
+    var local=String(card&&card.localId||"");
+    var suffix="-"+local;
+    if(local&&id.toUpperCase().endsWith(suffix.toUpperCase()))return id.slice(0,id.length-suffix.length);
+    var split=id.lastIndexOf("-");
+    return split>0?id.slice(0,split):"";
+  }
+  async function getSetMeta(setId,signal){
+    if(setMetaCache[setId])return setMetaCache[setId];
+    var response=await fetch(API+"/sets/"+encodeURIComponent(setId),{signal:signal,cache:"default"});
+    if(!response.ok)return null;
+    var data=await response.json();
+    setMetaCache[setId]=data;
+    return data;
+  }
+  function setMatchesCode(set,code){
+    if(!set)return false;
+    var target=normaliseSetCode(code);
+    var candidates=[
+      set.id,
+      set.tcgOnline,
+      String(set.name||"").split(/\s+/)[0]
+    ].map(normaliseSetCode).filter(Boolean);
+    return candidates.indexOf(target)!==-1;
+  }
+  async function searchCardReference(reference,signal){
+    var variants=collectorVariants(reference.localId);
+    var directCodes=[reference.code.toLowerCase()];
+    for(var d=0;d<directCodes.length;d++){
+      for(var v=0;v<variants.length;v++){
+        try{
+          var direct=await fetch(API+"/cards/"+encodeURIComponent(directCodes[d]+"-"+variants[v]),{signal:signal,cache:"default"});
+          if(direct.ok){
+            var directCard=await direct.json();
+            if(comparableCollector(directCard.localId)===comparableCollector(reference.localId))return [directCard];
+          }
+        }catch(err){
+          if(err&&err.name==="AbortError")throw err;
+        }
+      }
+    }
+
+    var candidates=[];
+    for(var i=0;i<variants.length;i++){
+      var response=await fetch(API+"/cards?localId="+encodeURIComponent(variants[i])+"&pagination:page=1&pagination:itemsPerPage=120",{signal:signal,cache:"default"});
+      if(!response.ok)continue;
+      var found=await response.json();
+      if(Array.isArray(found)){
+        found.forEach(function(card){
+          if(comparableCollector(card.localId)!==comparableCollector(reference.localId))return;
+          if(!candidates.some(function(existing){return existing.id===card.id}))candidates.push(card);
+        });
+      }
+    }
+    if(!candidates.length)return [];
+
+    var bySet={};
+    candidates.forEach(function(card){
+      var setId=cardSetId(card);
+      if(setId)bySet[setId]=true;
+    });
+    var setIds=Object.keys(bySet).slice(0,80);
+    var sets=await Promise.all(setIds.map(function(setId){return getSetMeta(setId,signal)}));
+    var matchingIds={};
+    sets.forEach(function(set,index){
+      if(setMatchesCode(set,reference.code))matchingIds[setIds[index]]=true;
+    });
+    return candidates.filter(function(card){return !!matchingIds[cardSetId(card)]});
+  }
   function renderSearchResults(cards){
     var target=$("#tcgSearchResults");if(!target)return;
     if(!cards.length){
@@ -155,10 +252,20 @@
     setStatus("Searching TCGdex…");
     var target=$("#tcgSearchResults");if(target)target.innerHTML='<div class="tcg-search-empty">Searching…</div>';
     try{
+      var reference=parseCardReference(q);
+      var cards;
+      if(reference){
+        cards=await searchCardReference(reference,searchAbort.signal);
+        renderSearchResults(cards);
+        setStatus(cards.length
+          ?"Found "+cards.length+" card"+(cards.length===1?"":"s")+" for "+reference.code+" "+reference.localId+"."
+          :"No card found for "+reference.code+" "+reference.localId+".");
+        return;
+      }
       var url=API+"/cards?name="+encodeURIComponent(q)+"&pagination:page=1&pagination:itemsPerPage=24";
       var response=await fetch(url,{signal:searchAbort.signal,cache:"default"});
       if(!response.ok)throw new Error("Card search failed");
-      var cards=await response.json();
+      cards=await response.json();
       cards=Array.isArray(cards)?cards:[];
       renderSearchResults(cards);
       setStatus(cards.length?"Showing "+cards.length+" matching printing"+(cards.length===1?"":"s")+".":"No matching cards found.");

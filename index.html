@@ -12,7 +12,7 @@
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
   <script defer src="/assets/js/app.js?v=1.0.6"></script>
   <script defer src="/assets/js/auth.js?v=0.6.3"></script>
-  <script defer src="/assets/js/tcg.js?v=0.1.0"></script>
+  <script defer src="/assets/js/tcg.js?v=0.1.1"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -178,9 +178,9 @@
             </div>
             <label class="search-field tcg-search-field">
               <span>Search by card name</span>
-              <div class="search-input-wrap"><span>⌕</span><input id="tcgCardSearch" autocomplete="off" placeholder="Start typing, e.g. Iono"></div>
+              <div class="search-input-wrap"><span>⌕</span><input id="tcgCardSearch" autocomplete="off" placeholder="Card name or set + number, e.g. MEP 093"></div>
             </label>
-            <p class="field-hint">Choose the exact printing so the set and collector number are correct on your deck list.</p>
+            <p class="field-hint">Search by card name or set abbreviation + collector number, e.g. MEP093, MEP 093, MEP93 or MEP 93.</p>
             <div class="tcg-search-status" id="tcgSearchStatus" role="status" aria-live="polite">Search for a card to start building.</div>
             <div class="tcg-search-results" id="tcgSearchResults"></div>
           </section>
