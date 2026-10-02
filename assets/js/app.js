@@ -1107,6 +1107,37 @@
     return {champions:"Pokémon Champions",sv:"Scarlet / Violet",swsh:"Sword / Shield",custom:"Custom / Other"}[game]||prettyName(game);
   }
 
+  function itemSpriteCandidates(name,savedUrl){
+    var slug=moveSlug(name);
+    var base="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/";
+    var candidates=[];
+    if(savedUrl)candidates.push(savedUrl);
+    if(slug){
+      candidates.push(base+slug+".png");
+      ["gen9","gen8","gen7","gen6","gen5","gen4","gen3"].forEach(function(gen){
+        candidates.push(base+gen+"/"+slug+".png");
+      });
+    }
+    return candidates.filter(function(url,index,list){return url&&list.indexOf(url)===index});
+  }
+
+  function wireItemSpriteFallbacks(root){
+    $("img[data-item-sources]",root).forEach(function(img){
+      var sources=[];
+      try{sources=JSON.parse(img.dataset.itemSources||"[]")}catch(e){}
+      var index=0;
+      function useNext(){
+        index++;
+        if(index>=sources.length){
+          img.style.display="none";
+          return;
+        }
+        img.src=sources[index];
+      }
+      img.addEventListener("error",useNext);
+    });
+  }
+
   function renderRankedStats(target,rows,total,withImages){
     var el=$(target);if(!el)return;
     if(!rows||!rows.length){
@@ -1117,13 +1148,21 @@
     el.innerHTML=rows.map(function(row,index){
       var count=Number(row.count)||0;
       var pct=total?Math.round((count/total)*100):0;
+      var image="";
+      if(withImages){
+        var sources=itemSpriteCandidates(row.name,row.image);
+        if(sources.length){
+          image='<img src="'+escapeHtml(sources[0])+'" data-item-sources="'+escapeHtml(JSON.stringify(sources))+'" alt="" loading="lazy">';
+        }
+      }
       return '<div class="stats-ranked-row">'+
         '<span class="stats-rank">'+(index+1)+'</span>'+
-        (withImages?'<img src="'+escapeHtml(row.image||("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/"+moveSlug(row.name)+".png"))+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'')+
+        image+
         '<div class="stats-ranked-copy"><strong>'+escapeHtml(row.name||"—")+'</strong><span><i style="width:'+Math.max(6,Math.round((count/max)*100))+'%"></i></span></div>'+
         '<div class="stats-ranked-value"><strong>'+formatStatNumber(count)+'</strong>'+(total?'<small>'+pct+'%</small>':'')+'</div>'+
       '</div>';
     }).join("");
+    if(withImages)wireItemSpriteFallbacks(el);
   }
 
   function renderStats(data){
