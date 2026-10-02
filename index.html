@@ -8,11 +8,11 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.11">
+  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.12">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
   <script defer src="/assets/js/app.js?v=1.0.6"></script>
   <script defer src="/assets/js/auth.js?v=0.7.1"></script>
-  <script defer src="/assets/js/tcg.js?v=0.3.0"></script>
+  <script defer src="/assets/js/tcg.js?v=0.4.0"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -196,6 +196,10 @@
               <div><small>Pokémon</small><strong id="tcgPokemonCount">0</strong></div>
               <div><small>Trainers</small><strong id="tcgTrainerCount">0</strong></div>
               <div><small>Energy</small><strong id="tcgEnergyCount">0</strong></div>
+            </div>
+            <div class="tcg-readiness is-building" id="tcgReadiness" aria-live="polite">
+              <span class="tcg-readiness-icon" id="tcgReadinessIcon">×</span>
+              <div><strong id="tcgReadinessTitle">Building</strong><small id="tcgReadinessCopy">Add cards to begin validation.</small></div>
             </div>
             <div class="tcg-validation" id="tcgValidation" aria-live="polite"></div>
             <div class="tcg-deck-groups" id="tcgDeckGroups"></div>
@@ -597,6 +601,7 @@
         <div><small>Format</small><strong id="tcgListFormat">Standard</strong></div>
         <div><small>Total</small><strong id="tcgListTotal">0 / 60</strong></div>
       </div>
+      <div class="tcg-list-readiness is-building" id="tcgListReadiness">Building · Deck validation has not completed yet.</div>
       <div class="tcg-list-preview-groups" id="tcgListGroups"></div>
       <div class="tcg-list-preview-note">This is the first-pass tournament list view. Printable/PDF formatting will be built from this same saved deck data.</div>
       <div class="tcg-preview-actions"><button class="button primary" id="tcgDeckListDone" type="button">Done</button></div>

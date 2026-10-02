@@ -11,6 +11,13 @@
   var previewCard=null;
   var previewScrollY=0;
   var accountUser=null;
+  var validationTimer=null;
+  var validationGeneration=0;
+  var validationState={checking:false,metadataReady:false,aceReady:false,aceError:false,reprints:{}};
+  var reprintCache={};
+  var aceSpecIds=null;
+  var aceSpecPromise=null;
+  var lastValidation={status:"building",blockers:[],warnings:[],checkedAt:""};
 
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
@@ -50,6 +57,8 @@
       category:String(card.category||"Other"),
       energyType:String(card.energyType||""),
       trainerType:String(card.trainerType||""),
+      stage:String(card.stage||""),
+      rarity:String(card.rarity||""),
       setId:String(card.set&&card.set.id||card.setId||card._setId||""),
       setName:String(card._setName||card.set&&card.set.name||card.setName||""),
       setCode:String(card._setCode||card.setCode||""),
@@ -95,6 +104,12 @@
         pokemon:categoryCount("Pokemon"),
         trainer:categoryCount("Trainer"),
         energy:categoryCount("Energy")
+      },
+      validation:{
+        status:lastValidation.status,
+        blockers:lastValidation.blockers.slice(),
+        warnings:lastValidation.warnings.slice(),
+        checkedAt:lastValidation.checkedAt||""
       }
     };
   }
@@ -142,32 +157,277 @@
     });
     return Object.keys(totals).map(function(key){return totals[key]});
   }
-  function standardWarnings(){
-    return state.cards.filter(function(card){return card.legal&&card.legal.standard===false});
+  function isAceSpec(card){
+    if(!card)return false;
+    if(/ace\s*spec/i.test(String(card.rarity||"")))return true;
+    return !!(aceSpecIds&&aceSpecIds.has(String(card.id||"")));
   }
-  function renderValidation(){
-    var target=$("#tcgValidation");if(!target)return;
+  function hasKnownBasicPokemon(){
+    return state.cards.some(function(card){
+      return card.category==="Pokemon"&&String(card.stage||"").trim().toLowerCase()==="basic";
+    });
+  }
+  function pokemonStageMetadataComplete(){
+    return state.cards.filter(function(card){return card.category==="Pokemon"}).every(function(card){
+      return !!String(card.stage||"").trim();
+    });
+  }
+  function standardState(card){
+    if(card&&card.legal&&card.legal.standard===true)return "legal";
+    if(card&&card.legal&&card.legal.standard===false)return "rotated";
+    return "unknown";
+  }
+  function validationItem(type,title,text){
+    return {type:type,title:title,text:text};
+  }
+  function buildValidationSummary(){
+    var items=[],blockers=[],warnings=[],checking=false;
     var count=total();
-    var items=[];
-    if(count===60)items.push({type:"ok",text:"60 cards — deck size is correct."});
-    else if(count<60)items.push({type:"warn",text:"Add "+(60-count)+" more card"+(60-count===1?"":"s")+" to reach 60."});
-    else items.push({type:"error",text:"Remove "+(count-60)+" card"+(count-60===1?"":"s")+" — constructed decks must contain exactly 60 cards."});
+
+    if(count===60){
+      items.push(validationItem("ok","Deck size","Exactly 60 cards."));
+    }else if(count<60){
+      var missing=60-count;
+      var sizeText="Add "+missing+" more card"+(missing===1?"":"s")+" to reach 60.";
+      items.push(validationItem("warn","Deck size",sizeText));
+      blockers.push(sizeText);
+    }else{
+      var excess=count-60;
+      var excessText="Remove "+excess+" card"+(excess===1?"":"s")+" — constructed decks must contain exactly 60 cards.";
+      items.push(validationItem("error","Deck size",excessText));
+      blockers.push(excessText);
+    }
 
     var over=nameTotals().filter(function(item){return item.count>4});
     if(over.length){
-      items.push({type:"error",text:"Four-copy limit exceeded: "+over.map(function(item){return item.name+" ×"+item.count}).join(", ")+". Basic Energy is exempt."});
-    }else if(state.cards.length){
-      items.push({type:"ok",text:"No four-copy rule conflicts detected."});
+      var copyText="Four-copy limit exceeded: "+over.map(function(item){return item.name+" ×"+item.count}).join(", ")+". Basic Energy is exempt.";
+      items.push(validationItem("error","Copy limit",copyText));
+      blockers.push(copyText);
+    }else{
+      items.push(validationItem("ok","Copy limit","No four-copy rule conflicts detected."));
     }
 
-    var flagged=standardWarnings();
-    if(flagged.length){
-      var names=[];
-      flagged.forEach(function(card){if(names.indexOf(card.name)===-1)names.push(card.name)});
-      items.push({type:"warn",text:"Standard check: "+names.slice(0,5).join(", ")+(names.length>5?" and "+(names.length-5)+" more":"")+" include a printing TCGdex does not mark Standard legal. Older printings may still be usable when an equivalent current reprint exists, so treat this as a review flag rather than a hard block."});
+    if(hasKnownBasicPokemon()){
+      items.push(validationItem("ok","Basic Pokémon","At least one Basic Pokémon is included."));
+    }else if(!pokemonStageMetadataComplete()&&!validationState.metadataReady&&state.cards.some(function(card){return card.category==="Pokemon"})){
+      checking=true;
+      items.push(validationItem("checking","Basic Pokémon","Checking Pokémon stages…"));
+    }else{
+      var basicText="Add at least one Basic Pokémon.";
+      items.push(validationItem("error","Basic Pokémon",basicText));
+      blockers.push(basicText);
     }
-    target.innerHTML=items.map(function(item){return '<div class="tcg-validation-item '+item.type+'">'+esc(item.text)+'</div>'}).join("");
+
+    var aceCards=state.cards.filter(isAceSpec);
+    var aceCount=aceCards.reduce(function(sum,card){return sum+(Number(card.qty)||0)},0);
+    if(validationState.aceError){
+      var aceWarn="ACE SPEC metadata could not be refreshed; review the deck manually if it contains an ACE SPEC card.";
+      items.push(validationItem("warn","ACE SPEC",aceWarn));
+      warnings.push(aceWarn);
+    }else if(!validationState.aceReady){
+      checking=true;
+      items.push(validationItem("checking","ACE SPEC","Checking ACE SPEC restrictions…"));
+    }else if(aceCount>1){
+      var aceNames=aceCards.map(function(card){return card.name+" ×"+card.qty}).join(", ");
+      var aceText="Only one ACE SPEC card total is allowed. Current deck: "+aceNames+".";
+      items.push(validationItem("error","ACE SPEC",aceText));
+      blockers.push(aceText);
+    }else{
+      items.push(validationItem("ok","ACE SPEC",aceCount===1?"One ACE SPEC card — limit satisfied.":"No ACE SPEC conflict."));
+    }
+
+    var rotatedByName={},unknownByName={};
+    state.cards.forEach(function(card){
+      var status=standardState(card);
+      var key=String(card.name||"").trim().toLowerCase();
+      if(!key)return;
+      if(status==="rotated"&&!rotatedByName[key])rotatedByName[key]=card;
+      if(status==="unknown"&&!unknownByName[key])unknownByName[key]=card;
+    });
+
+    var illegal=[],reprints=[],unverified=[];
+    Object.keys(rotatedByName).forEach(function(key){
+      var card=rotatedByName[key];
+      var resolution=validationState.reprints[key];
+      if(resolution==="reprint")reprints.push(card);
+      else if(resolution==="illegal")illegal.push(card);
+      else if(resolution==="error")unverified.push(card);
+      else checking=true;
+    });
+    Object.keys(unknownByName).forEach(function(key){unverified.push(unknownByName[key])});
+
+    if(illegal.length){
+      var illegalText="Not Standard legal: "+illegal.map(function(card){
+        return card.name+(card.regulationMark?" (Reg. "+card.regulationMark+")":"");
+      }).join(", ")+". No current same-name legal reprint was found.";
+      items.push(validationItem("error","Standard legality",illegalText));
+      blockers.push(illegalText);
+    }
+    if(reprints.length){
+      var reprintText="Older printing selected: "+reprints.map(function(card){return card.name}).join(", ")+". A same-name Standard-legal reprint exists; verify current wording and any errata.";
+      items.push(validationItem("warn","Standard reprint",reprintText));
+      warnings.push(reprintText);
+    }
+    if(unverified.length){
+      var unverifiedNames=[];
+      unverified.forEach(function(card){if(unverifiedNames.indexOf(card.name)===-1)unverifiedNames.push(card.name)});
+      var verifyText="Could not fully verify Standard legality for "+unverifiedNames.join(", ")+".";
+      if(validationState.metadataReady){
+        items.push(validationItem("warn","Standard legality",verifyText));
+        warnings.push(verifyText);
+      }else{
+        checking=true;
+        items.push(validationItem("checking","Standard legality","Checking "+unverifiedNames.join(", ")+"…"));
+      }
+    }
+    if(!illegal.length&&!reprints.length&&!unverified.length){
+      items.push(validationItem("ok","Standard legality","All selected printings are marked Standard legal."));
+    }
+
+    var status="ready",title="Tournament Ready",copy="All automatic deck checks passed.";
+    if(blockers.length){
+      status=count===60?"blocked":"building";
+      title=count===60?"Needs fixes":"Building";
+      copy=blockers.length+" blocker"+(blockers.length===1?"":"s")+" before this deck is tournament ready.";
+    }else if(checking){
+      status="checking";title="Checking deck";copy="Finishing legality and card-rule checks…";
+    }else if(warnings.length){
+      status="review";title="Review needed";copy=warnings.length+" warning"+(warnings.length===1?"":"s")+" to review before submission.";
+    }
+
+    return {status:status,title:title,copy:copy,items:items,blockers:blockers,warnings:warnings};
   }
+  function renderValidation(){
+    var target=$("#tcgValidation");if(!target)return;
+    var summary=buildValidationSummary();
+    lastValidation={
+      status:summary.status,
+      blockers:summary.blockers.slice(),
+      warnings:summary.warnings.slice(),
+      checkedAt:new Date().toISOString()
+    };
+
+    var readiness=$("#tcgReadiness");
+    if(readiness){
+      readiness.className="tcg-readiness is-"+summary.status;
+      $("#tcgReadinessTitle").textContent=summary.title;
+      $("#tcgReadinessCopy").textContent=summary.copy;
+      $("#tcgReadinessIcon").textContent=summary.status==="ready"?"✓":summary.status==="checking"?"…":summary.status==="review"?"!":"×";
+    }
+
+    target.innerHTML=summary.items.map(function(item){
+      return '<div class="tcg-validation-item '+item.type+'"><strong>'+esc(item.title)+'</strong><span>'+esc(item.text)+'</span></div>';
+    }).join("");
+
+    var listStatus=$("#tcgListReadiness");
+    if(listStatus){
+      listStatus.className="tcg-list-readiness is-"+summary.status;
+      listStatus.textContent=summary.title+" · "+summary.copy;
+    }
+  }
+  async function loadAceSpecIndex(){
+    if(aceSpecIds)return aceSpecIds;
+    if(aceSpecPromise)return aceSpecPromise;
+    aceSpecPromise=fetch(API+"/cards?rarity="+encodeURIComponent("ACE SPEC Rare"),{cache:"default"})
+      .then(function(response){if(!response.ok)throw new Error("ACE SPEC index failed");return response.json()})
+      .then(function(cards){
+        aceSpecIds=new Set((Array.isArray(cards)?cards:[]).map(function(card){return String(card.id||"")}).filter(Boolean));
+        validationState.aceReady=true;
+        validationState.aceError=false;
+        return aceSpecIds;
+      })
+      .catch(function(){
+        aceSpecIds=new Set();
+        validationState.aceReady=true;
+        validationState.aceError=true;
+        return aceSpecIds;
+      });
+    return aceSpecPromise;
+  }
+  async function hydrateValidationMetadata(){
+    var targets=state.cards.filter(function(card){
+      var missingStage=card.category==="Pokemon"&&!String(card.stage||"").trim();
+      var missingLegal=!(card.legal&&Object.prototype.hasOwnProperty.call(card.legal,"standard"));
+      return missingStage||missingLegal;
+    });
+    if(!targets.length)return;
+    await Promise.all(targets.map(async function(card){
+      try{
+        var response=await fetch(API+"/cards/"+encodeURIComponent(card.id),{cache:"default"});
+        if(!response.ok)return;
+        var full=await response.json();
+        if(full.stage)card.stage=String(full.stage);
+        if(full.rarity)card.rarity=String(full.rarity);
+        if(full.legal&&typeof full.legal==="object")card.legal=full.legal;
+        if(full.regulationMark&&!card.regulationMark)card.regulationMark=String(full.regulationMark);
+      }catch(e){}
+    }));
+  }
+  async function resolveStandardReprint(name){
+    var key=String(name||"").trim().toLowerCase();
+    if(!key)return "error";
+    if(reprintCache[key])return reprintCache[key];
+    reprintCache[key]=(async function(){
+      try{
+        var url=API+"/cards?name=eq:"+encodeURIComponent(name)+"&sort:field=releaseDate&sort:order=DESC&pagination:page=1&pagination:itemsPerPage=16";
+        var response=await fetch(url,{cache:"default"});
+        if(!response.ok)throw new Error("Reprint search failed");
+        var briefs=await response.json();
+        briefs=(Array.isArray(briefs)?briefs:[]).filter(function(card){
+          return String(card.name||"").trim().toLowerCase()===key;
+        }).slice(0,16);
+        if(!briefs.length)return "illegal";
+        var full=await Promise.all(briefs.map(async function(card){
+          try{
+            var result=await fetch(API+"/cards/"+encodeURIComponent(card.id),{cache:"default"});
+            return result.ok?result.json():null;
+          }catch(e){return null}
+        }));
+        return full.some(function(card){return card&&card.legal&&card.legal.standard===true})?"reprint":"illegal";
+      }catch(e){
+        return "error";
+      }
+    })();
+    return reprintCache[key];
+  }
+  async function refreshValidationAsync(){
+    var generation=++validationGeneration;
+    validationState.checking=true;
+    validationState.metadataReady=false;
+    renderValidation();
+
+    await Promise.all([loadAceSpecIndex(),hydrateValidationMetadata()]);
+    if(generation!==validationGeneration)return;
+    validationState.metadataReady=true;
+
+    var rotatedNames={};
+    state.cards.forEach(function(card){
+      if(standardState(card)==="rotated"){
+        var key=String(card.name||"").trim().toLowerCase();
+        if(key)rotatedNames[key]=card.name;
+      }
+    });
+    var keys=Object.keys(rotatedNames);
+    var results=await Promise.all(keys.map(function(key){return resolveStandardReprint(rotatedNames[key])}));
+    if(generation!==validationGeneration)return;
+
+    validationState.reprints={};
+    keys.forEach(function(key,index){validationState.reprints[key]=results[index]});
+    validationState.checking=false;
+    renderValidation();
+    save();
+  }
+  function scheduleValidationRefresh(){
+    clearTimeout(validationTimer);
+    validationTimer=setTimeout(function(){
+      refreshValidationAsync().catch(function(){
+        validationState.checking=false;
+        validationState.metadataReady=true;
+        renderValidation();
+      });
+    },120);
+  }
+
   function categoryCards(category){
     return state.cards.filter(function(card){return card.category===category}).sort(function(a,b){
       return a.name.localeCompare(b.name)||a.setName.localeCompare(b.setName)||a.localId.localeCompare(b.localId,undefined,{numeric:true});
@@ -206,6 +466,7 @@
     }
     renderValidation();
     save();
+    scheduleValidationRefresh();
   }
   function setStatus(message){
     var el=$("#tcgSearchStatus");if(el)el.textContent=message;
@@ -732,6 +993,7 @@
     $("#tcgListPlayerId").textContent=player.playerId||"Player ID not set";
     $("#tcgListFormat").textContent="Standard";
     $("#tcgListTotal").textContent=payload.totals.total+" / 60";
+    renderValidation();
     $("#tcgListGroups").innerHTML=tournamentGroupHtml("Pokemon","Pokémon")+tournamentGroupHtml("Trainer","Trainers")+tournamentGroupHtml("Energy","Energy");
     lockPreviewScroll();
     if(typeof dialog.showModal==="function"&&!dialog.open)dialog.showModal();

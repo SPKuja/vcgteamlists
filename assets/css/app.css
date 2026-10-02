@@ -2210,3 +2210,25 @@ body.tcg-preview-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .go-logo img{display:block;width:auto;height:auto;max-width:170px;max-height:64px;object-fit:contain;filter:drop-shadow(0 5px 12px rgba(0,0,0,.14))}
 .new-team-game .go-logo img{max-width:150px;max-height:54px}
 .go-cloud-mark img{max-width:92px!important;max-height:48px!important}
+
+
+/* TCG tournament readiness validation */
+.tcg-readiness{display:flex;align-items:center;gap:11px;border:1px solid var(--line);border-radius:15px;padding:11px 12px;margin-bottom:10px;background:#f7f8fb}
+.tcg-readiness-icon{width:34px;height:34px;flex:0 0 34px;border-radius:11px;display:grid;place-items:center;font-size:16px;font-weight:950;background:#e7e9ef;color:#696c78}
+.tcg-readiness strong{display:block;font-size:12px}
+.tcg-readiness small{display:block;font-size:9px;line-height:1.4;color:var(--muted);margin-top:2px}
+.tcg-readiness.is-ready{border-color:#bde7ca;background:#eefaf2}.tcg-readiness.is-ready .tcg-readiness-icon{background:#d8f3e1;color:#14733a}
+.tcg-readiness.is-review{border-color:#f0d99e;background:#fff9e9}.tcg-readiness.is-review .tcg-readiness-icon{background:#fff0bf;color:#7a5900}
+.tcg-readiness.is-checking{border-color:#cbd8f1;background:#f2f6ff}.tcg-readiness.is-checking .tcg-readiness-icon{background:#e0e9fb;color:#315b9e}
+.tcg-readiness.is-blocked{border-color:#efc2c9;background:#fff3f5}.tcg-readiness.is-blocked .tcg-readiness-icon{background:#f9dfe4;color:#9b2537}
+.tcg-validation{gap:6px}
+.tcg-validation-item{display:grid;grid-template-columns:112px minmax(0,1fr);gap:10px;align-items:start}
+.tcg-validation-item strong{font-size:9px;line-height:1.35}
+.tcg-validation-item span{font-size:9px;line-height:1.45;font-weight:650}
+.tcg-validation-item.checking{background:#f2f6ff;color:#315b9e}
+.tcg-list-readiness{margin:0 0 14px;border-radius:12px;padding:10px 11px;font-size:9px;line-height:1.4;font-weight:800;background:#f7f8fb;color:var(--muted)}
+.tcg-list-readiness.is-ready{background:#eefaf2;color:#14733a}
+.tcg-list-readiness.is-review{background:#fff9e9;color:#7a5900}
+.tcg-list-readiness.is-checking{background:#f2f6ff;color:#315b9e}
+.tcg-list-readiness.is-blocked{background:#fff3f5;color:#9b2537}
+@media(max-width:620px){.tcg-validation-item{grid-template-columns:1fr;gap:3px}}
