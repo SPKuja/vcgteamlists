@@ -662,7 +662,7 @@
       mon.stats[key]=$('[data-final-stat="'+key+'"]').value.trim();
       mon.statPoints[key]=$('[data-point-stat="'+key+'"]').value.trim();
     });
-    mon.moves=$(".move-input").map(function(input){return input.value.trim()});
+    mon.moves=$$(".move-input").map(function(input){return input.value.trim()});
     mon.moveTypes=mon.moves.map(function(move,index){
       return existing.moves&&existing.moves[index]===move&&existing.moveTypes?existing.moveTypes[index]||"":"";
     });
