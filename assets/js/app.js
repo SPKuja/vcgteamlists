@@ -359,6 +359,103 @@
     return moveSlug(goMoveName(id));
   }
 
+  function goDisplayValue(value){
+    return value===null||value===undefined||String(value).trim()===""?"—":String(value);
+  }
+
+  function goIvText(ivs){
+    ivs=ivs||{};
+    return [goDisplayValue(ivs.attack),goDisplayValue(ivs.defense),goDisplayValue(ivs.hp)].join(" / ");
+  }
+
+  function reconcileGoMoveInputs(fastMoves,chargedMoves){
+    var removed=[];
+    [
+      {input:$("#moveInput0"),pool:fastMoves||[],label:"Fast Move"},
+      {input:$("#moveInput1"),pool:chargedMoves||[],label:"Charged Move 1"},
+      {input:$("#moveInput2"),pool:chargedMoves||[],label:"Charged Move 2"}
+    ].forEach(function(field){
+      if(!field.input)return;
+      field.input.setCustomValidity("");
+      var value=field.input.value.trim();
+      if(value&&field.pool.indexOf(moveSlug(value))===-1){
+        removed.push(field.label);
+        field.input.value="";
+      }
+    });
+    return removed;
+  }
+
+  function reportGoInputError(input,message){
+    if(!input)return false;
+    input.setCustomValidity(message);
+    input.reportValidity();
+    input.focus();
+    return false;
+  }
+
+  function validateGoEditor(mon){
+    var league=goLeagueInfo();
+    var cpInput=$("#goCpInput");
+    var levelInput=$("#goLevelInput");
+    var ivInputs={attack:$("#goIvAttack"),defense:$("#goIvDefense"),hp:$("#goIvHp")};
+    var moveInputs=[$("#moveInput0"),$("#moveInput1"),$("#moveInput2")];
+    [cpInput,levelInput].concat(Object.keys(ivInputs).map(function(key){return ivInputs[key]}),moveInputs).forEach(function(input){
+      if(input)input.setCustomValidity("");
+    });
+
+    var cpRaw=String(mon.goCP==null?"":mon.goCP).trim();
+    if(cpRaw){
+      var cp=Number(cpRaw);
+      if(!Number.isInteger(cp)||cp<10||cp>10000){
+        return reportGoInputError(cpInput,"Enter a whole-number CP between 10 and 10000.");
+      }
+      if(league.cap&&cp>league.cap){
+        return reportGoInputError(cpInput,"CP must be "+league.cap+" or lower for "+league.name+".");
+      }
+    }
+
+    var levelRaw=String(mon.goLevel==null?"":mon.goLevel).trim();
+    if(levelRaw){
+      var level=Number(levelRaw);
+      if(!Number.isFinite(level)||level<1||level>51||Math.abs(level*2-Math.round(level*2))>0.000001){
+        return reportGoInputError(levelInput,"Enter a Pokémon level from 1 to 51 in 0.5 level steps.");
+      }
+    }
+
+    var ivs=mon.goIVs||{};
+    var ivLabels={attack:"Attack",defense:"Defense",hp:"HP"};
+    var ivKeys=["attack","defense","hp"];
+    for(var i=0;i<ivKeys.length;i++){
+      var key=ivKeys[i];
+      var raw=String(ivs[key]==null?"":ivs[key]).trim();
+      if(!raw)continue;
+      var value=Number(raw);
+      if(!Number.isInteger(value)||value<0||value>15){
+        return reportGoInputError(ivInputs[key],ivLabels[key]+" IV must be a whole number from 0 to 15.");
+      }
+    }
+
+    var fast=(mon.goFastMoves||[]).map(moveSlug);
+    var charged=(mon.goChargedMoves||[]).map(moveSlug);
+    var selectedFast=moveSlug((mon.moves||[])[0]||"");
+    if(selectedFast&&fast.indexOf(selectedFast)===-1){
+      return reportGoInputError(moveInputs[0],"Choose a Fast Move available to this Pokémon.");
+    }
+    for(var moveIndex=1;moveIndex<=2;moveIndex++){
+      var selectedCharged=moveSlug((mon.moves||[])[moveIndex]||"");
+      if(selectedCharged&&charged.indexOf(selectedCharged)===-1){
+        return reportGoInputError(moveInputs[moveIndex],"Choose a Charged Move available to this Pokémon.");
+      }
+    }
+    var chargedOne=moveSlug((mon.moves||[])[1]||"");
+    var chargedTwo=moveSlug((mon.moves||[])[2]||"");
+    if(chargedOne&&chargedTwo&&chargedOne===chargedTwo){
+      return reportGoInputError(moveInputs[2],"Choose two different Charged Moves.");
+    }
+    return true;
+  }
+
   function showToast(message){
     var el=$("#toast");el.textContent=message;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.classList.remove("show")},2200);
   }
@@ -651,7 +748,7 @@
               '<div class="slot-types">'+types+'</div>'+
               '<div class="go-slot-badges"><span>CP '+cp+'</span><span>Lv. '+level+'</span>'+(mon.goShadow?'<span class="go-shadow-badge">Shadow</span>':'')+'</div>'+
               '<div class="slot-info-grid go-slot-info">'+
-                '<div><small>IVs</small><span>'+escapeHtml(ivs.attack||0)+' / '+escapeHtml(ivs.defense||0)+' / '+escapeHtml(ivs.hp||0)+'</span></div>'+
+                '<div><small>IVs</small><span>'+escapeHtml(goIvText(ivs))+'</span></div>'+
                 '<div><small>Fast move</small><span>'+escapeHtml(fast)+'</span></div>'+
                 '<div class="go-charge-row"><small>Charged moves</small><span>'+escapeHtml(charges)+'</span></div>'+
               '</div>'+
@@ -765,6 +862,8 @@
             $("#selectedPokemon").dataset.goFastMoves=JSON.stringify(fast);
             $("#selectedPokemon").dataset.goChargedMoves=JSON.stringify(charged);
             $("#selectedPokemon").dataset.moves=JSON.stringify(fast.concat(charged));
+            var removed=reconcileGoMoveInputs(fast,charged);
+            if(removed.length)showToast("Moves cleared because they are not available for this "+(this.checked?"Shadow":"standard")+" form");
           }
         }catch(e){}
       });
@@ -1246,16 +1345,7 @@
       return;
     }
     if(!mon.name){showToast("Choose or enter a Pokémon first");return}
-    if(state.game==="go"){
-      var league=goLeagueInfo();
-      var cp=Number(mon.goCP)||0;
-      var ivs=mon.goIVs||{};
-      if(league.cap&&cp>league.cap){showToast("CP exceeds the "+league.name+" cap of "+league.cap);return}
-      if(["attack","defense","hp"].some(function(key){var value=Number(ivs[key]);return value<0||value>15})){
-        showToast("Pokémon GO IVs must be between 0 and 15");
-        return;
-      }
-    }
+    if(state.game==="go"&&!validateGoEditor(mon))return;
     state.team[state.editingIndex]=mon;
     markDirty();
     closeEditor();
@@ -1549,7 +1639,7 @@
         '<div class="go-paper-art'+(mon.goShadow?' go-shadow-art':'')+'">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
         '<div class="go-paper-body">'+
           '<div class="go-paper-top"><div><h3>'+escapeHtml(mon.name)+'</h3>'+monTypePills(mon,false)+'</div>'+(mon.goShadow?'<span class="go-shadow-badge">Shadow</span>':'')+'</div>'+
-          '<div class="go-paper-stats"><div><small>CP</small><strong>'+escapeHtml(mon.goCP||"—")+'</strong></div><div><small>Level</small><strong>'+escapeHtml(mon.goLevel||"—")+'</strong></div><div><small>IVs A/D/HP</small><strong>'+escapeHtml(ivs.attack||0)+' / '+escapeHtml(ivs.defense||0)+' / '+escapeHtml(ivs.hp||0)+'</strong></div></div>'+
+          '<div class="go-paper-stats"><div><small>CP</small><strong>'+escapeHtml(mon.goCP||"—")+'</strong></div><div><small>Level</small><strong>'+escapeHtml(mon.goLevel||"—")+'</strong></div><div><small>IVs A/D/HP</small><strong>'+escapeHtml(goIvText(ivs))+'</strong></div></div>'+
           '<div class="go-paper-moves">'+moveHtml+'</div>'+
         '</div>'+
       '</article>';
@@ -1580,7 +1670,7 @@
       var ivs=mon.goIVs||{};
       return '<article class="go-print-mon">'+
         '<div class="go-print-art'+(mon.goShadow?' go-shadow-art':'')+'">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
-        '<div class="go-print-copy"><h2>'+escapeHtml(mon.name)+'</h2><p>CP '+escapeHtml(mon.goCP||"—")+' · Lv. '+escapeHtml(mon.goLevel||"—")+' · IVs '+escapeHtml(ivs.attack||0)+'/'+escapeHtml(ivs.defense||0)+'/'+escapeHtml(ivs.hp||0)+(mon.goShadow?" · Shadow":"")+'</p>'+
+        '<div class="go-print-copy"><h2>'+escapeHtml(mon.name)+'</h2><p>CP '+escapeHtml(mon.goCP||"—")+' · Lv. '+escapeHtml(mon.goLevel||"—")+' · IVs '+escapeHtml(goIvText(ivs))+(mon.goShadow?" · Shadow":"")+'</p>'+
         '<ul>'+(mon.moves||[]).slice(0,3).filter(Boolean).map(function(move){return '<li>'+escapeHtml(move)+'</li>'}).join("")+'</ul></div>'+
       '</article>';
     }).join("");

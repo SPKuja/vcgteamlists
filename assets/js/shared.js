@@ -40,6 +40,15 @@
     return mon&&mon.form&&mon.form!=="Standard"?(mon.name+" — "+mon.form):(mon&&mon.name)||"Pokémon";
   }
 
+  function goDisplayValue(value){
+    return value===null||value===undefined||String(value).trim()===""?"—":String(value);
+  }
+
+  function goIvText(ivs){
+    ivs=ivs||{};
+    return [goDisplayValue(ivs.attack),goDisplayValue(ivs.defense),goDisplayValue(ivs.hp)].join(" / ");
+  }
+
   function render(team){
     $("#sharedTeamName").textContent=team.name||"Shared team";
     $("#sharedGameName").textContent=gameName(team.game);
@@ -52,7 +61,7 @@
         var ivs=mon.goIVs||{};
         details.push('<div><small>CP</small><strong>'+esc(mon.goCP||"—")+'</strong></div>');
         details.push('<div><small>Level</small><strong>'+esc(mon.goLevel||"—")+'</strong></div>');
-        details.push('<div><small>IVs A / D / HP</small><strong>'+esc(ivs.attack||0)+' / '+esc(ivs.defense||0)+' / '+esc(ivs.hp||0)+'</strong></div>');
+        details.push('<div><small>IVs A / D / HP</small><strong>'+esc(goIvText(ivs))+'</strong></div>');
         if(mon.goShadow)details.push('<div><small>Variant</small><strong>Shadow</strong></div>');
       }else{
         if(mon.ability)details.push('<div><small>Ability</small><strong>'+esc(mon.ability)+'</strong></div>');
