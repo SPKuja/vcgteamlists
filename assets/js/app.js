@@ -70,7 +70,7 @@
   }
   function emptyStats(){return {hp:"",attack:"",defense:"",specialAttack:"",specialDefense:"",speed:""}}
   function blankMon(){
-    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",alignmentUp:"",alignmentDown:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),evs:null,ivs:null,moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""],goSpeciesId:"",goDex:null,goCP:"",goLevel:"",goIVs:{attack:"",defense:"",hp:""},goShadow:false,goFastMoves:[],goChargedMoves:[],goArtworkKey:"",goArtworkSource:""};
+    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",alignmentUp:"",alignmentDown:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),evs:null,ivs:null,moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""],goSpeciesId:"",goDex:null,goCP:"",goLevel:"",goIVs:{attack:"",defense:"",hp:""},goShadow:false,goShadowEligible:false,goFastMoves:[],goChargedMoves:[],goArtworkKey:"",goArtworkSource:""};
   }
 
   function teamSize(game){
@@ -328,6 +328,26 @@
     }));
     if(changed)saveState(true);
     return changed;
+  }
+
+  function goBaseSpeciesId(speciesId){
+    return String(speciesId||"").replace(/_shadow$/i,"");
+  }
+
+  function goShadowEntry(data,speciesId){
+    if(!data||!Array.isArray(data.pokemon))return null;
+    var base=goBaseSpeciesId(speciesId);
+    return data.pokemon.filter(function(mon){
+      return mon&&mon.speciesId===base+"_shadow";
+    })[0]||null;
+  }
+
+  function goBaseEntry(data,speciesId){
+    if(!data||!Array.isArray(data.pokemon))return null;
+    var base=goBaseSpeciesId(speciesId);
+    return data.pokemon.filter(function(mon){
+      return mon&&mon.speciesId===base;
+    })[0]||null;
   }
 
   function goMoveName(id){
@@ -724,9 +744,29 @@
       $("#goIvDefense").value=ivs.defense!==undefined?ivs.defense:"";
       $("#goIvHp").value=ivs.hp!==undefined?ivs.hp:"";
       $("#goShadowInput").checked=!!mon.goShadow;
-      $("#goShadowInput").addEventListener("change",function(){
+      $("#goShadowInput").disabled=!mon.goShadowEligible;
+      var shadowLabel=$("#goShadowInput").closest(".inline-toggle");
+      if(shadowLabel){
+        shadowLabel.classList.toggle("is-disabled",!mon.goShadowEligible);
+        var shadowNote=shadowLabel.querySelector("small");
+        if(shadowNote)shadowNote.textContent=mon.goShadowEligible?"Uses the Shadow version where available.":"No Shadow version is available for this Pokémon.";
+      }
+      $("#goShadowInput").addEventListener("change",async function(){
         var imageWrap=$(".pokemon-image-wrap");
         if(imageWrap)imageWrap.classList.toggle("go-shadow-art",this.checked);
+        $("#selectedPokemon").dataset.goShadow=this.checked?"1":"";
+        try{
+          var data=await ensureGoData();
+          var baseId=goBaseSpeciesId($("#selectedPokemon").dataset.goSpeciesId);
+          var variant=this.checked?goShadowEntry(data,baseId):goBaseEntry(data,baseId);
+          if(variant){
+            var fast=(variant.fastMoves||[]).map(goMoveSlug);
+            var charged=(variant.chargedMoves||[]).map(goMoveSlug);
+            $("#selectedPokemon").dataset.goFastMoves=JSON.stringify(fast);
+            $("#selectedPokemon").dataset.goChargedMoves=JSON.stringify(charged);
+            $("#selectedPokemon").dataset.moves=JSON.stringify(fast.concat(charged));
+          }
+        }catch(e){}
       });
       return;
     }
@@ -826,6 +866,7 @@
     $("#selectedPokemon").dataset.goFastMoves=JSON.stringify(mon.goFastMoves||[]);
     $("#selectedPokemon").dataset.goChargedMoves=JSON.stringify(mon.goChargedMoves||[]);
     $("#selectedPokemon").dataset.goShadow=mon.goShadow?"1":"";
+    $("#selectedPokemon").dataset.goShadowEligible=mon.goShadowEligible?"1":"";
     if(state.game==="go"){
       $("#formField").hidden=true;
       $("#formSelect").innerHTML="";
@@ -929,6 +970,9 @@
     try{
       var data=await ensureGoData();
       var matches=data.pokemon.filter(function(mon){
+        var tags=mon.tags||[];
+        var isShadow=tags.indexOf("shadow")!==-1||/_shadow$/i.test(String(mon.speciesId||""))||/\(shadow\)/i.test(String(mon.speciesName||""));
+        if(isShadow)return false;
         return String(mon.speciesName||"").toLowerCase().indexOf(q)!==-1||String(mon.speciesId||"").toLowerCase().replace(/_/g," ").indexOf(q)!==-1;
       }).sort(function(a,b){
         var an=String(a.speciesName||"").toLowerCase(),bn=String(b.speciesName||"").toLowerCase();
@@ -936,8 +980,8 @@
       }).slice(0,18);
       if(!matches.length){results.innerHTML='<button class="search-result" disabled>No GO matches</button>';return}
       results.innerHTML=matches.map(function(mon){
-        var shadow=(mon.tags||[]).indexOf("shadow")!==-1;
-        return '<button class="search-result go-search-result" data-pokemon="'+escapeHtml(mon.speciesId)+'"><strong>'+escapeHtml(mon.speciesName)+'</strong><small>'+escapeHtml((mon.types||[]).map(prettyName).join(" / "))+(shadow?" · Shadow":"")+'</small></button>';
+        var shadowAvailable=!!goShadowEntry(data,mon.speciesId)||(mon.tags||[]).indexOf("shadoweligible")!==-1;
+        return '<button class="search-result go-search-result" data-pokemon="'+escapeHtml(mon.speciesId)+'"><strong>'+escapeHtml(mon.speciesName)+'</strong><small>'+escapeHtml((mon.types||[]).map(prettyName).join(" / "))+(shadowAvailable?" · Shadow available":"")+'</small></button>';
       }).join("");
     }catch(err){
       results.innerHTML='<button class="search-result" disabled>GO data unavailable</button>';
@@ -950,8 +994,10 @@
       var data=await ensureGoData();
       var entry=data.pokemon.filter(function(mon){return mon.speciesId===speciesId})[0];
       if(!entry)throw new Error("GO Pokémon not found");
-      var shadow=(entry.tags||[]).indexOf("shadow")!==-1;
-      var name=(entry.speciesName||prettyName(speciesId.replace(/_/g,"-"))).replace(/\s*\(Shadow\)\s*$/i,"");
+      entry=goBaseEntry(data,entry.speciesId)||entry;
+      var shadowEntry=goShadowEntry(data,entry.speciesId);
+      var shadow=false;
+      var name=(entry.speciesName||prettyName(entry.speciesId.replace(/_/g,"-"))).replace(/\s*\(Shadow\)\s*$/i,"");
       var league=goLeagueInfo();
       var defaults=league.key&&entry.defaultIVs&&entry.defaultIVs[league.key]?entry.defaultIVs[league.key]:null;
       var mon=blankMon();
@@ -960,9 +1006,10 @@
       mon.name=name;
       mon.form="Standard";
       mon.types=(entry.types||[]).map(prettyName);
-      mon.goSpeciesId=speciesId;
+      mon.goSpeciesId=goBaseSpeciesId(entry.speciesId);
       mon.goDex=entry.dex||null;
       mon.goShadow=shadow;
+      mon.goShadowEligible=!!shadowEntry||(entry.tags||[]).indexOf("shadoweligible")!==-1;
       mon.goFastMoves=(entry.fastMoves||[]).map(goMoveSlug);
       mon.goChargedMoves=(entry.chargedMoves||[]).map(goMoveSlug);
       mon.availableMoves=mon.goFastMoves.concat(mon.goChargedMoves);
@@ -990,8 +1037,13 @@
     if(!mon||!mon.goSpeciesId)return;
     try{
       var data=await ensureGoData();
-      var entry=data.pokemon.filter(function(item){return item.speciesId===mon.goSpeciesId})[0];
+      var wasShadow=!!mon.goShadow||/_shadow$/i.test(String(mon.goSpeciesId||""));
+      var baseId=goBaseSpeciesId(mon.goSpeciesId);
+      var entry=goBaseEntry(data,baseId);
       if(!entry)return;
+      mon.goSpeciesId=baseId;
+      mon.goShadow=wasShadow;
+      mon.goShadowEligible=!!goShadowEntry(data,baseId)||(entry.tags||[]).indexOf("shadoweligible")!==-1;
       mon.goDex=entry.dex||mon.goDex;
       mon.name=(entry.speciesName||mon.name||"").replace(/\s*\(Shadow\)\s*$/i,"");
       mon.types=(entry.types||[]).map(prettyName);
@@ -1131,11 +1183,12 @@
     try{mon.availableMoves=JSON.parse(selected.dataset.moves||"[]")}catch(e){mon.availableMoves=[]}
 
     if(state.game==="go"){
-      mon.goSpeciesId=selected.dataset.goSpeciesId||existing.goSpeciesId||mon.slug;
+      mon.goSpeciesId=goBaseSpeciesId(selected.dataset.goSpeciesId||existing.goSpeciesId||mon.slug);
       mon.goDex=Number(selected.dataset.goDex||existing.goDex)||null;
+      mon.goShadowEligible=selected.dataset.goShadowEligible==="1"||!!existing.goShadowEligible;
       try{mon.goFastMoves=JSON.parse(selected.dataset.goFastMoves||"[]")}catch(e){mon.goFastMoves=[]}
       try{mon.goChargedMoves=JSON.parse(selected.dataset.goChargedMoves||"[]")}catch(e){mon.goChargedMoves=[]}
-      mon.goShadow=!!($("#goShadowInput")&&$("#goShadowInput").checked);
+      mon.goShadow=!!($("#goShadowInput")&&$("#goShadowInput").checked)&&mon.goShadowEligible;
       mon.goCP=$("#goCpInput")?$("#goCpInput").value.trim():"";
       mon.goLevel=$("#goLevelInput")?$("#goLevelInput").value.trim():"";
       mon.goIVs={

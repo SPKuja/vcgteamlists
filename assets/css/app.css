@@ -1979,3 +1979,10 @@ html.editor-open,body.editor-open{
   .go-shadow-art::after{display:none}
   .go-shadow-art img{filter:drop-shadow(0 0 2.5mm rgba(92,39,150,.65))}
 }
+
+.go-pokemon-fields .inline-toggle.is-disabled{
+  opacity:.58;
+}
+.go-pokemon-fields .inline-toggle.is-disabled input{
+  cursor:not-allowed;
+}
