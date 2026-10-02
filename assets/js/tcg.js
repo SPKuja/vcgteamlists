@@ -9,6 +9,7 @@
   var setMetaCache={};
   var setCodeCache={};
   var previewCard=null;
+  var previewScrollY=0;
 
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
@@ -256,11 +257,29 @@
   function formatCardText(value){
     return String(value==null?"":value).replace(/\{([^}]+)\}/g,"[$1]");
   }
+  function energySymbolSvg(type){
+    var key=String(type||"Colorless").trim();
+    var lower=key.toLowerCase();
+    var shapes={
+      colorless:'<path d="M12 2.7l2.05 5.15 5.45-1.35-2.8 4.85 4.3 3.6-5.55.85.35 5.6-3.8-4.15-3.8 4.15.35-5.6-5.55-.85 4.3-3.6-2.8-4.85 5.45 1.35z"/>',
+      grass:'<path d="M19.2 4.3C13.8 4.6 8.6 6.1 5.8 10.5c-2.4 3.8-.7 7.7 3.2 8.5 4.8 1 8.1-2.6 9.1-7.1.5-2.2.8-4.7 1.1-7.6zM7.4 17.3c2.2-3.4 5-6 8.7-8.2-2.8 2.8-5.1 5.8-6.8 9.2z"/>',
+      fire:'<path d="M13.2 2.2c1 4-2.8 5.3-2.1 8.2.3 1.3 1.4 1.7 2.4.9 1.1-.8 1.4-2.3 1.2-3.8 2.7 2 4.4 4.5 4 7.5-.5 3.7-3.5 6.3-7.3 6.3-4.1 0-7.2-2.8-7.2-6.7 0-3.2 1.9-5.8 4.6-8.1-.2 2.2.2 3.9 1.5 4.7-.1-3.5 1.4-6.3 2.9-9z"/>',
+      water:'<path d="M12 2.1s-6.7 7.3-6.7 12.3A6.7 6.7 0 0012 21.1a6.7 6.7 0 006.7-6.7C18.7 9.4 12 2.1 12 2.1zm-3 12.8c.5 1.7 1.7 2.8 3.8 3.3-2.8.8-5.2-1-5.3-3.5-.1-.8.1-1.6.5-2.4.1 1 .4 1.9 1 2.6z"/>',
+      lightning:'<path d="M13.6 1.7L5.2 13h5.4l-1 9.3L18.8 10h-5.5z"/>',
+      psychic:'<path d="M12 3a8.8 8.8 0 108.8 8.8h-3a5.8 5.8 0 11-1.7-4.1 4 4 0 10.1 5.8h-2.8a1.5 1.5 0 11.4-1.1H11a4.2 4.2 0 104.2-4.2v3h5.6A8.8 8.8 0 0012 3z"/>',
+      fighting:'<path d="M4 9.2c0-1 .8-1.8 1.8-1.8h1V5.9c0-1 .8-1.8 1.8-1.8.7 0 1.3.4 1.6.9.3-.7 1-1.2 1.8-1.2.9 0 1.6.6 1.8 1.4.3-.5.9-.9 1.6-.9 1 0 1.8.8 1.8 1.8v4.1h.5c1.3 0 2.3 1 2.3 2.3v2.2c0 4.2-3.3 7.5-7.5 7.5h-1.1c-2.2 0-4.1-.9-5.5-2.4L3.4 17c-.7-.8-.7-2 .1-2.7.8-.7 2-.7 2.7.1l.7.8V11H5.8C4.8 11 4 10.2 4 9.2z"/>',
+      darkness:'<path d="M15.7 2.8a9.4 9.4 0 100 18.4c-3.3-1.7-5.5-5.1-5.5-9.2s2.2-7.5 5.5-9.2zm1.4 5.1l.8 1.9 2.1.2-1.6 1.4.5 2-1.8-1.1-1.8 1.1.5-2-1.6-1.4 2.1-.2z"/>',
+      metal:'<path d="M9.2 2.5h5.6l1 2.5 2.5-1 3 4.7-2 1.8.4 2.7 2.2 1.4-2.8 5-2.6-.8-1.8 2.2H9.1l-1.7-2.2-2.7.8-2.6-5 2.2-1.4.4-2.7-2-1.8 3-4.7 2.5 1 1-2.5zm2.8 5A4.5 4.5 0 1012 16.5 4.5 4.5 0 0012 7.5z"/>',
+      fairy:'<path d="M12 2.2l1.8 5.5 5.7-.1-4.7 3.3 1.9 5.4-4.7-3.2-4.7 3.2 1.9-5.4-4.7-3.3 5.7.1L12 2.2zm0 13.2l1 2.5 2.7.1-2.1 1.7.7 2.6-2.3-1.5-2.3 1.5.7-2.6-2.1-1.7 2.7-.1z"/>',
+      dragon:'<path d="M4.1 5.4c4.5-2.8 9.2-2.7 14.1.4l-4.5 1.4 4.9 3.2-5.2.5 3.7 4.6-5.1-1.4-1.7 6.1-2-5.6-4.8 2.2 2.7-5.1-4.8-.2 4.2-3.2z"/>'
+    };
+    if(!shapes[lower])lower="colorless";
+    return '<span class="tcg-energy-symbol '+esc(lower)+'" title="'+esc(key)+' Energy" aria-label="'+esc(key)+' Energy">'+
+      '<svg viewBox="0 0 24 24" aria-hidden="true">'+shapes[lower]+'</svg></span>';
+  }
   function energyCostHtml(cost){
     if(!Array.isArray(cost)||!cost.length)return "";
-    return '<span class="tcg-energy-cost">'+cost.map(function(item){
-      return '<b title="'+esc(item)+'">'+esc(String(item).slice(0,2).toUpperCase())+'</b>';
-    }).join("")+'</span>';
+    return '<span class="tcg-energy-cost">'+cost.map(energySymbolSvg).join("")+'</span>';
   }
   function renderPokemonInfo(card){
     var out=[];
@@ -289,9 +308,14 @@
     }
 
     var battle=[];
-    if(Array.isArray(card.weaknesses)&&card.weaknesses.length)battle.push('<div><small>Weakness</small><strong>'+esc(card.weaknesses.map(function(item){return item.type+(item.value?" "+item.value:"")}).join(", "))+'</strong></div>');
-    if(Array.isArray(card.resistances)&&card.resistances.length)battle.push('<div><small>Resistance</small><strong>'+esc(card.resistances.map(function(item){return item.type+(item.value?" "+item.value:"")}).join(", "))+'</strong></div>');
-    if(card.retreat!==undefined&&card.retreat!==null)battle.push('<div><small>Retreat</small><strong>'+esc(card.retreat)+'</strong></div>');
+    if(Array.isArray(card.weaknesses)&&card.weaknesses.length)battle.push('<div><small>Weakness</small><strong class="tcg-type-value">'+card.weaknesses.map(function(item){return energySymbolSvg(item.type)+(item.value?'<span>'+esc(item.value)+'</span>':"")}).join("")+'</strong></div>');
+    if(Array.isArray(card.resistances)&&card.resistances.length)battle.push('<div><small>Resistance</small><strong class="tcg-type-value">'+card.resistances.map(function(item){return energySymbolSvg(item.type)+(item.value?'<span>'+esc(item.value)+'</span>':"")}).join("")+'</strong></div>');
+    if(card.retreat!==undefined&&card.retreat!==null){
+      var retreatCount=Math.max(0,Number(card.retreat)||0);
+      var retreatIcons=[];
+      for(var r=0;r<retreatCount;r++)retreatIcons.push(energySymbolSvg("Colorless"));
+      battle.push('<div><small>Retreat</small><strong class="tcg-type-value">'+(retreatIcons.length?retreatIcons.join(""):'<span>Free</span>')+'</strong></div>');
+    }
     if(battle.length)out.push('<div class="tcg-card-facts compact">'+battle.join("")+'</div>');
     return out.join("");
   }
@@ -486,10 +510,11 @@
       if(target)target.innerHTML='<div class="tcg-search-empty">Could not load cards. Try again.</div>';
     }
   }
-  async function addCard(id,cardData){
+  async function addCard(id,cardData,quantity){
     if(!id)return;
     setStatus("Adding card…");
     try{
+      var amount=Math.max(1,Math.min(60,Number(quantity)||1));
       var full=cardData||null;
       if(!full){
         var response=await fetch(API+"/cards/"+encodeURIComponent(id),{cache:"default"});
@@ -498,13 +523,40 @@
       }
       full=(await enrichCards([full]))[0]||full;
       var existing=state.cards.filter(function(card){return card.id===id})[0];
-      if(existing)existing.qty=Math.min(60,existing.qty+1);
-      else state.cards.push(normaliseCard(full));
+      if(existing)existing.qty=Math.min(60,existing.qty+amount);
+      else{
+        var normalised=normaliseCard(full);
+        normalised.qty=amount;
+        state.cards.push(normalised);
+      }
       renderDeck();
-      setStatus((full.name||"Card")+" added to deck.");
+      setStatus(amount+" × "+(full.name||"Card")+" added to deck.");
     }catch(err){
       setStatus("Could not add that card. Try again.");
     }
+  }
+  function copiesOfName(name){
+    var key=String(name||"").trim().toLowerCase();
+    return state.cards.reduce(function(sum,card){
+      return sum+(String(card.name||"").trim().toLowerCase()===key?(Number(card.qty)||0):0);
+    },0);
+  }
+  function previewQuantityLimit(card){
+    var deckSpace=Math.max(0,60-total());
+    if(isBasicEnergy(card))return deckSpace;
+    return Math.max(0,Math.min(deckSpace,4-copiesOfName(card.name)));
+  }
+  function lockPreviewScroll(){
+    if(document.body.classList.contains("tcg-preview-open"))return;
+    previewScrollY=window.scrollY||window.pageYOffset||0;
+    document.body.classList.add("tcg-preview-open");
+    document.body.style.top="-"+previewScrollY+"px";
+  }
+  function unlockPreviewScroll(){
+    if(!document.body.classList.contains("tcg-preview-open"))return;
+    document.body.classList.remove("tcg-preview-open");
+    document.body.style.top="";
+    window.scrollTo(0,previewScrollY);
   }
   function renderCardPreview(card){
     var modal=$(".tcg-card-preview-modal");
@@ -524,6 +576,19 @@
     if(card.regulationMark)details.push("Regulation "+card.regulationMark);
     if($("#tcgPreviewDetails"))$("#tcgPreviewDetails").textContent=details.join(" · ")||"";
     if($("#tcgPreviewCardInfo"))$("#tcgPreviewCardInfo").innerHTML=renderCardExtraInfo(card);
+    var qty=$("#tcgPreviewQty");
+    var addButton=$("#tcgPreviewAdd");
+    var limit=previewQuantityLimit(card);
+    if(qty){
+      qty.value=limit>0?"1":"0";
+      qty.min=limit>0?"1":"0";
+      qty.max=String(limit);
+      qty.disabled=limit<=0;
+    }
+    if(addButton){
+      addButton.disabled=limit<=0;
+      addButton.textContent=limit<=0?"Copy limit reached":"Add to deck";
+    }
     var legality=$("#tcgPreviewLegality");
     if(legality){
       if(card.legal&&card.legal.standard===true){
@@ -549,6 +614,11 @@
     var modal=$(".tcg-card-preview-modal");if(modal)modal.classList.remove("is-text-only");
     if($("#tcgPreviewImage"))$("#tcgPreviewImage").innerHTML='<div class="tcg-preview-loading">Loading artwork…</div>';
     if($("#tcgPreviewAdd"))$("#tcgPreviewAdd").disabled=true;
+    if($("#tcgPreviewQty")){
+      $("#tcgPreviewQty").value="1";
+      $("#tcgPreviewQty").disabled=true;
+    }
+    lockPreviewScroll();
     if(typeof dialog.showModal==="function"&&!dialog.open)dialog.showModal();
     try{
       var response=await fetch(API+"/cards/"+encodeURIComponent(id),{cache:"default"});
@@ -566,6 +636,7 @@
     var dialog=$("#tcgCardPreviewDialog");
     if(dialog&&dialog.open)dialog.close();
     previewCard=null;
+    unlockPreviewScroll();
   }
   async function hydrateStoredSetInfo(){
     var ids=[];
@@ -649,9 +720,24 @@
     if($("#tcgPreviewCancel"))$("#tcgPreviewCancel").addEventListener("click",closeCardPreview);
     if($("#tcgPreviewAdd"))$("#tcgPreviewAdd").addEventListener("click",function(){
       if(!previewCard)return;
-      addCard(previewCard.id,previewCard).then(closeCardPreview);
+      var qty=$("#tcgPreviewQty");
+      var limit=previewQuantityLimit(previewCard);
+      var amount=Math.max(1,Math.min(limit,Number(qty&&qty.value)||1));
+      if(limit<=0)return;
+      addCard(previewCard.id,previewCard,amount).then(closeCardPreview);
     });
-    if(previewDialog)previewDialog.addEventListener("click",function(e){if(e.target===this)closeCardPreview()});
+    if($("#tcgPreviewQty"))$("#tcgPreviewQty").addEventListener("input",function(){
+      if(!previewCard)return;
+      var limit=previewQuantityLimit(previewCard);
+      var value=Number(this.value);
+      if(value>limit)this.value=String(limit);
+      if(value<1&&limit>0)this.value="1";
+    });
+    if(previewDialog){
+      previewDialog.addEventListener("click",function(e){if(e.target===this)closeCardPreview()});
+      previewDialog.addEventListener("cancel",function(e){e.preventDefault();closeCardPreview()});
+      previewDialog.addEventListener("close",function(){unlockPreviewScroll()});
+    }
     $$("[data-select-deck]").forEach(function(button){button.addEventListener("click",openDeck)});
     document.addEventListener("error",function(e){
       if(e.target&&e.target.matches&&e.target.matches(".tcg-card-image"))handleCardImageError(e.target);

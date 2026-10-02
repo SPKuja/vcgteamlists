@@ -2131,3 +2131,36 @@ html.editor-open,body.editor-open{
   .tcg-card-preview-modal,.tcg-card-preview-modal.is-text-only{grid-template-columns:1fr}
   .tcg-card-facts,.tcg-card-facts.compact{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+
+/* TCG energy symbols, quantity picker and modal scroll lock */
+body.tcg-preview-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
+.tcg-energy-cost{display:inline-flex;align-items:center;gap:4px;flex:0 0 auto}
+.tcg-energy-symbol{--energy-bg:#e7e8ec;--energy-fg:#353842;display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--energy-bg);color:var(--energy-fg);border:1px solid rgba(20,22,30,.17);box-shadow:inset 0 1px 1px rgba(255,255,255,.65),0 1px 2px rgba(20,22,30,.08);flex:0 0 24px}
+.tcg-energy-symbol svg{width:17px;height:17px;fill:currentColor}
+.tcg-energy-symbol.colorless{--energy-bg:#eeeeef;--energy-fg:#555862}
+.tcg-energy-symbol.grass{--energy-bg:#7ac75a;--energy-fg:#163d1a}
+.tcg-energy-symbol.fire{--energy-bg:#f35a3c;--energy-fg:#fff}
+.tcg-energy-symbol.water{--energy-bg:#58a9e8;--energy-fg:#fff}
+.tcg-energy-symbol.lightning{--energy-bg:#f6d84c;--energy-fg:#5d4b00}
+.tcg-energy-symbol.psychic{--energy-bg:#b777cb;--energy-fg:#fff}
+.tcg-energy-symbol.fighting{--energy-bg:#c87a4c;--energy-fg:#fff}
+.tcg-energy-symbol.darkness{--energy-bg:#585a63;--energy-fg:#fff}
+.tcg-energy-symbol.metal{--energy-bg:#b7bdc2;--energy-fg:#40444a}
+.tcg-energy-symbol.fairy{--energy-bg:#efa3c7;--energy-fg:#7a2850}
+.tcg-energy-symbol.dragon{--energy-bg:#d2ba4d;--energy-fg:#433600}
+.tcg-type-value{display:flex!important;align-items:center;gap:5px;flex-wrap:wrap}
+.tcg-type-value .tcg-energy-symbol{width:22px;height:22px;flex-basis:22px}
+.tcg-type-value .tcg-energy-symbol svg{width:15px;height:15px}
+.tcg-type-value>span:not(.tcg-energy-symbol){font-size:11px}
+.tcg-preview-qty{display:flex;align-items:center;gap:7px;height:42px;padding:5px 7px 5px 10px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.tcg-preview-qty span{font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:900}
+.tcg-preview-qty input{width:54px;height:30px;border:1px solid #dfe1e9;border-radius:8px;background:#f8f9fc;text-align:center;font-size:12px;font-weight:850;padding:0 4px}
+.tcg-preview-qty input:focus{outline:2px solid rgba(var(--accent-rgb),.16);border-color:var(--accent)}
+.tcg-preview-qty input:disabled{opacity:.55}
+@media(max-width:620px){
+  .tcg-preview-actions{display:grid;grid-template-columns:1fr auto 1.35fr;gap:7px}
+  .tcg-preview-actions .button{min-width:0}
+  .tcg-preview-qty{height:40px}
+  .tcg-preview-qty input{width:44px}
+}

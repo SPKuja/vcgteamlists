@@ -8,11 +8,11 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.7">
+  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.8">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
   <script defer src="/assets/js/app.js?v=1.0.6"></script>
   <script defer src="/assets/js/auth.js?v=0.6.3"></script>
-  <script defer src="/assets/js/tcg.js?v=0.2.1"></script>
+  <script defer src="/assets/js/tcg.js?v=0.2.2"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -591,6 +591,7 @@
         <div class="tcg-preview-legality" id="tcgPreviewLegality"></div>
         <div class="tcg-preview-actions">
           <button class="button ghost" id="tcgPreviewCancel" type="button">Close</button>
+          <label class="tcg-preview-qty"><span>Qty</span><input id="tcgPreviewQty" type="number" inputmode="numeric" min="1" max="4" value="1" disabled></label>
           <button class="button primary" id="tcgPreviewAdd" type="button" disabled>Add to deck</button>
         </div>
       </div>
