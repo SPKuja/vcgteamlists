@@ -61,7 +61,7 @@
   }
   function emptyStats(){return {hp:"",attack:"",defense:"",specialAttack:"",specialDefense:"",speed:""}}
   function blankMon(){
-    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",alignmentUp:"",alignmentDown:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""]};
+    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",alignmentUp:"",alignmentDown:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),evs:null,ivs:null,moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""]};
   }
   function shouldAutoFocus(){
     return !window.matchMedia || window.matchMedia("(hover: hover) and (pointer: fine)").matches;
@@ -662,6 +662,8 @@
     mon.alignmentDown=existing.alignment===mon.alignment?(existing.alignmentDown||""):"";
     mon.teraType=$("#teraInput")?$("#teraInput").value.trim():"";
     mon.gigantamax=$("#gmaxInput")?$("#gmaxInput").checked:false;
+    mon.evs=existing.evs||null;
+    mon.ivs=existing.ivs||null;
     statKeys.forEach(function(key){
       mon.stats[key]=$('[data-final-stat="'+key+'"]').value.trim();
       mon.statPoints[key]=$('[data-point-stat="'+key+'"]').value.trim();
@@ -1080,22 +1082,145 @@
     window.print();
   }
 
-  function shareTeam(){
+  function showdownExportSpecies(mon){
+    if(!mon)return "";
+    if(!mon.form||mon.form==="Standard")return mon.name||prettyName(mon.speciesSlug||mon.slug);
+    var speciesSlug=mon.speciesSlug||showdownSlug(mon.name);
+    var slug=mon.slug||speciesSlug;
+    if(/-mask$/.test(slug))slug=slug.replace(/-mask$/,"");
+    if(slug.indexOf(speciesSlug+"-")===0){
+      var suffix=slug.slice(speciesSlug.length+1).split("-").map(function(part){
+        return part?part.charAt(0).toUpperCase()+part.slice(1):"";
+      }).join("-");
+      return (mon.name||prettyName(speciesSlug))+"-"+suffix;
+    }
+    return mon.name||prettyName(slug);
+  }
+
+  function showdownSpreadLine(label,spread,defaults){
+    if(!spread)return "";
+    var parts=[];
+    statKeys.forEach(function(key){
+      var value=Number(spread[key]);
+      if(!Number.isFinite(value))return;
+      if(defaults&&value===defaults[key])return;
+      if(!defaults&&value===0)return;
+      parts.push(value+" "+statLabels[key]);
+    });
+    return parts.length?label+": "+parts.join(" / "):"";
+  }
+
+  function showdownExportText(){
+    var completed=state.team.filter(function(m){return m&&m.name});
+    return completed.map(function(mon){
+      var lead=showdownExportSpecies(mon);
+      if(mon.gender==="Male")lead+=" (M)";
+      if(mon.gender==="Female")lead+=" (F)";
+      if(mon.item)lead+=" @ "+mon.item;
+      var lines=[lead];
+      if(mon.ability)lines.push("Ability: "+mon.ability);
+      if(gameConfig[state.game].showLevel!==false&&mon.level&&Number(mon.level)!==100)lines.push("Level: "+Number(mon.level));
+      if(mon.teraType)lines.push("Tera Type: "+mon.teraType);
+      var evLine=showdownSpreadLine("EVs",mon.evs,null);
+      if(evLine)lines.push(evLine);
+      var ivLine=showdownSpreadLine("IVs",mon.ivs,{hp:31,attack:31,defense:31,specialAttack:31,specialDefense:31,speed:31});
+      if(ivLine)lines.push(ivLine);
+      if(mon.alignment)lines.push(mon.alignment+" Nature");
+      if(mon.gigantamax)lines.push("Gigantamax: Yes");
+      (mon.moves||[]).filter(Boolean).forEach(function(move){lines.push("- "+move)});
+      return lines.join("\n");
+    }).join("\n\n");
+  }
+
+  async function exportShowdown(){
+    var text=showdownExportText();
+    if(!text){showToast("Add at least one Pokémon before exporting");return}
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      try{
+        await navigator.clipboard.writeText(text);
+        showToast("Showdown team copied to clipboard");
+        return;
+      }catch(e){}
+    }
+    var blob=new Blob([text],{type:"text/plain;charset=utf-8"});
+    var url=URL.createObjectURL(blob);
+    var link=document.createElement("a");
+    link.href=url;link.download="pokemon-showdown-team.txt";document.body.appendChild(link);link.click();link.remove();
+    setTimeout(function(){URL.revokeObjectURL(url)},1000);
+    showToast("Showdown team downloaded");
+  }
+
+  function loadExternalScript(src,test){
+    if(test())return Promise.resolve();
+    return new Promise(function(resolve,reject){
+      var existing=document.querySelector('script[data-runtime-src="'+src+'"]');
+      if(existing){
+        existing.addEventListener("load",resolve,{once:true});
+        existing.addEventListener("error",reject,{once:true});
+        return;
+      }
+      var script=document.createElement("script");
+      script.src=src;script.async=true;script.dataset.runtimeSrc=src;
+      script.onload=resolve;script.onerror=reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  async function ensurePdfLibraries(){
+    await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",function(){return typeof window.html2canvas==="function"});
+    await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js",function(){return !!(window.jspdf&&window.jspdf.jsPDF)});
+  }
+
+  function safeTeamFilename(){
+    var base=(state.meta.trainerName||state.meta.playerName||"VGC Team").trim().replace(/[^a-z0-9 _-]+/gi,"").replace(/\s+/g," ").trim();
+    return (base||"VGC Team")+" - Team List.pdf";
+  }
+
+  async function createTeamPdfFile(){
+    var completed=state.team.filter(function(m){return m&&m.name});
+    if(!completed.length)throw new Error("Add at least one Pokémon before sharing");
+    await Promise.all([hydrateMoveMeta(completed),hydrateItemMeta(completed),hydrateNatureMeta(completed)]);
+    renderPreview(true);
+    var preview=$("#screenPreview");
+    await Promise.all($("img",preview).map(waitForImage));
+    if(document.fonts&&document.fonts.ready){try{await document.fonts.ready}catch(e){}}
+    await ensurePdfLibraries();
+    var canvas=await window.html2canvas(preview,{scale:2,useCORS:true,backgroundColor:"#ffffff",logging:false});
+    var jsPDF=window.jspdf.jsPDF;
+    var pdf=new jsPDF({orientation:"portrait",unit:"mm",format:"a4",compress:true});
+    var pageWidth=210,pageHeight=297,margin=7;
+    var ratio=Math.min((pageWidth-margin*2)/canvas.width,(pageHeight-margin*2)/canvas.height);
+    var width=canvas.width*ratio,height=canvas.height*ratio;
+    var x=(pageWidth-width)/2,y=(pageHeight-height)/2;
+    pdf.addImage(canvas.toDataURL("image/jpeg",0.94),"JPEG",x,y,width,height,undefined,"FAST");
+    var blob=pdf.output("blob");
+    return new File([blob],safeTeamFilename(),{type:"application/pdf"});
+  }
+
+  async function shareTeam(){
     var completed=state.team.filter(function(m){return m&&m.name});
     if(!completed.length){showToast("Add at least one Pokémon before sharing");return}
-    var lines=["VGC Team",gameConfig[state.game].name,""];
-    completed.forEach(function(mon){
-      lines.push(displayMonName(mon)+" @ "+(mon.item||"No item"));
-      lines.push("Ability: "+(mon.ability||"—"));
-      if(mon.moves)mon.moves.filter(Boolean).forEach(function(m){lines.push("- "+m)});
-      lines.push("");
-    });
-    var text=lines.join("\n");
-    if(navigator.share){
-      navigator.share({title:"VGC Team List",text:text,url:location.href}).catch(function(){});
-    }else if(navigator.clipboard){
-      navigator.clipboard.writeText(text).then(function(){showToast("Team copied to clipboard")});
-    }else{showToast("Sharing is not available in this browser")}
+    var button=$("#shareButton"),original=button?button.textContent:"Share PDF";
+    if(button){button.disabled=true;button.textContent="Preparing PDF…"}
+    try{
+      var file=await createTeamPdfFile();
+      if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){
+        await navigator.share({title:"VGC Team List",text:gameConfig[state.game].name,files:[file]});
+        showToast("Team PDF shared");
+      }else{
+        var url=URL.createObjectURL(file);
+        var link=document.createElement("a");
+        link.href=url;link.download=file.name;document.body.appendChild(link);link.click();link.remove();
+        setTimeout(function(){URL.revokeObjectURL(url)},1500);
+        showToast("PDF downloaded — attach it anywhere you like");
+      }
+    }catch(err){
+      if(err&&err.name==="AbortError")return;
+      console.error("PDF share failed",err);
+      showToast(err&&err.message?err.message:"Could not create the PDF");
+    }finally{
+      if(button){button.disabled=false;button.textContent=original}
+    }
   }
 
   function clearTeam(){
@@ -1407,6 +1532,8 @@
     mon.alignment=set.nature;
     mon.teraType=set.teraType;
     mon.gigantamax=!!set.gigantamax;
+    mon.evs=set.evs||null;
+    mon.ivs=set.ivs||null;
     mon.moves=set.moves.slice(0,4);
     while(mon.moves.length<4)mon.moves.push("");
 
@@ -1561,6 +1688,7 @@
     ["playerName","trainerName","playerId","yearOfBirth"].forEach(function(id){$("#"+id).addEventListener("change",function(){syncMeta(true)})});
     $$("[data-sheet-mode]").forEach(function(b){b.addEventListener("click",function(){if(state.sheetMode!==b.dataset.sheetMode){state.sheetMode=b.dataset.sheetMode;markDirty()}renderPreview()})});
     $("#printButton").addEventListener("click",function(){printTeamSheet()});
+    $("#showdownExportButton").addEventListener("click",exportShowdown);
     $("#shareButton").addEventListener("click",shareTeam);
     $("#retryStatsButton").addEventListener("click",function(){loadStats(true)});
     document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!$("#editorBackdrop").hidden)closeEditor()});

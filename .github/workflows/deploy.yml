@@ -24,8 +24,23 @@ jobs:
           test -f index.html
           test -f manifest.webmanifest
           test -f assets/js/app.js
+          test -f assets/js/shared.js
+          test -f shared/index.html
           node --check assets/js/app.js
           node --check assets/js/auth.js
+          node --check assets/js/shared.js
+          node - <<'NODE'
+          const fs = require('fs');
+          for (const file of ['assets/js/app.js','assets/js/auth.js']) {
+            const source = fs.readFileSync(file,'utf8');
+            const bad = source.split('\n').filter(line => /(?<!\$)\$\([^)]*\)\.(forEach|map)\(/.test(line));
+            if (bad.length) {
+              console.error(file+': single-element $() selector used with a collection method');
+              console.error(bad.join('\n'));
+              process.exit(1);
+            }
+          }
+          NODE
           if compgen -G "api/*.php" > /dev/null; then
             for file in api/*.php; do php -l "$file"; done
           fi

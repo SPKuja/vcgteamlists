@@ -8,10 +8,10 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=0.8.1">
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.9.0">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
-  <script defer src="/assets/js/app.js?v=0.8.1"></script>
-  <script defer src="/assets/js/auth.js?v=0.5.1"></script>
+  <script defer src="/assets/js/app.js?v=0.9.0"></script>
+  <script defer src="/assets/js/auth.js?v=0.6.0"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -160,7 +160,8 @@
             <h1 id="previewTitle">Team sheet preview</h1>
           </div>
           <div class="preview-actions">
-            <button class="button secondary" id="shareButton">Share</button>
+            <button class="button secondary" id="showdownExportButton">Copy Showdown</button>
+            <button class="button secondary" id="shareButton">Share PDF</button>
             <button class="button primary" id="printButton">Print / Save PDF</button>
           </div>
         </div>
@@ -383,6 +384,28 @@
                 </div>
                 <div class="account-message" id="profileMessage" role="status" aria-live="polite"></div>
 
+                <section class="account-security-card" aria-labelledby="accountSecurityTitle">
+                  <div class="section-heading compact">
+                    <div><span class="eyebrow">Account details</span><h2 id="accountSecurityTitle">Email &amp; password</h2></div>
+                  </div>
+                  <form class="account-form account-update-form" id="changeEmailForm">
+                    <label><span>Email</span><input id="accountEmail" type="email" autocomplete="email" required></label>
+                    <label><span>Current password</span><input id="changeEmailPassword" type="password" autocomplete="current-password" required></label>
+                    <button class="button secondary" type="submit">Change email</button>
+                  </form>
+                  <div class="account-message" id="changeEmailMessage" role="status" aria-live="polite"></div>
+
+                  <div class="account-security-divider"></div>
+
+                  <form class="account-form account-update-form" id="changePasswordForm">
+                    <label><span>Current password</span><input id="currentPassword" type="password" autocomplete="current-password" required></label>
+                    <label><span>New password</span><input id="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+                    <label><span>Confirm new password</span><input id="newPasswordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+                    <button class="button secondary" type="submit">Change password</button>
+                  </form>
+                  <div class="account-message" id="changePasswordMessage" role="status" aria-live="polite"></div>
+                </section>
+
                 <section class="play-qr-card" aria-labelledby="playQrTitle">
                   <div class="play-qr-head">
                     <div>
@@ -430,6 +453,15 @@
         </div>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <div class="site-footer-links">
+        <a href="/terms/">Terms &amp; Conditions</a>
+        <span aria-hidden="true">·</span>
+        <a href="/privacy/">Privacy Notice</a>
+      </div>
+      <div class="site-footer-powered">Powered by <strong>Pokémon League Swindon</strong></div>
+    </footer>
 
     <nav class="bottom-nav" aria-label="Main navigation">
       <button class="is-active" data-nav="home"><span>⌂</span><small>Home</small></button>

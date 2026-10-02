@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#6757e8">
+  <title>Shared Team · VGC Team Lists</title>
+  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/css/app.css?v=0.9.0">
+  <script defer src="/assets/js/shared.js?v=0.1.0"></script>
+</head>
+<body>
+  <main class="shared-team-shell">
+    <header class="shared-team-head">
+      <a href="/" class="back-link">← VGC Team Lists</a>
+      <span class="eyebrow">Read-only shared team</span>
+      <h1 id="sharedTeamName">Shared team</h1>
+      <p id="sharedGameName">Loading…</p>
+    </header>
+
+    <div class="shared-team-loading" id="sharedLoading">Loading team…</div>
+    <div class="shared-team-grid" id="sharedTeamGrid" hidden></div>
+    <div class="stats-error" id="sharedError" hidden>
+      <strong>This shared team is unavailable.</strong>
+      <span>The link may have been revoked or replaced.</span>
+    </div>
+  </main>
+
+  <footer class="site-footer standalone-footer">
+    <div class="site-footer-links">
+      <a href="/terms/">Terms &amp; Conditions</a>
+      <span aria-hidden="true">·</span>
+      <a href="/privacy/">Privacy Notice</a>
+    </div>
+    <div class="site-footer-powered">Powered by <strong>Pokémon League Swindon</strong></div>
+  </footer>
+</body>
+</html>

@@ -79,6 +79,7 @@
   function renderProfile(){
     if(!auth.user)return;
     $("#profileEmail").textContent=auth.user.email;
+    $("#accountEmail").value=auth.user.email;
     $("#profileAvatar").src=auth.user.avatarUrl;
     $("#profilePlayerName").value=auth.user.playerName||"";
     $("#profileTrainerName").value=auth.user.trainerName||"";
@@ -206,6 +207,8 @@
           gameLogoHtml(team.game)+
         '</button>'+
         '<div class="cloud-team-actions">'+
+          '<button type="button" data-share-team="'+team.id+'">Share link</button>'+
+          (team.isShared?'<button type="button" data-revoke-share="'+team.id+'">Revoke link</button>':'')+
           '<button type="button" data-rename-team="'+team.id+'">Rename</button>'+
           '<button type="button" data-duplicate-team="'+team.id+'">Duplicate</button>'+
           '<button type="button" class="danger-link" data-delete-team="'+team.id+'">Delete</button>'+
@@ -357,6 +360,41 @@
     }catch(err){message("#profileMessage",err.message,true)}
   }
 
+  async function changeEmail(event){
+    event.preventDefault();
+    message("#changeEmailMessage","");
+    var email=$("#accountEmail").value.trim();
+    var password=$("#changeEmailPassword").value;
+    if(!email||!password){message("#changeEmailMessage","Enter your new email and current password.",true);return}
+    try{
+      var data=await api("account.php",{method:"POST",body:{action:"email",email:email,currentPassword:password}});
+      $("#changeEmailPassword").value="";
+      auth.user=null;auth.teams=[];auth.currentTeamId=null;
+      await refreshSession();
+      $("#loginEmail").value=email;
+      setPane("login");
+      message("#authMessage",data.message||"Email updated. Check your new email to verify it.");
+      window.VCGApp.navigate("profile",{skipBuildGuard:true});
+    }catch(err){message("#changeEmailMessage",err.message,true)}
+  }
+
+  async function changePassword(event){
+    event.preventDefault();
+    message("#changePasswordMessage","");
+    var current=$("#currentPassword").value;
+    var next=$("#newPassword").value;
+    var confirmPassword=$("#newPasswordConfirm").value;
+    if(next!==confirmPassword){message("#changePasswordMessage","New passwords do not match.",true);return}
+    try{
+      var data=await api("account.php",{method:"POST",body:{action:"password",currentPassword:current,newPassword:next}});
+      auth.csrf=data.csrf||auth.csrf;
+      if(data.user)auth.user=data.user;
+      $("#currentPassword").value="";$("#newPassword").value="";$("#newPasswordConfirm").value="";
+      renderAuth();
+      message("#changePasswordMessage","Password updated.");
+    }catch(err){message("#changePasswordMessage",err.message,true)}
+  }
+
   async function uploadAvatar(file){
     if(!file)return;
     var form=new FormData();form.append("avatar",file);
@@ -446,6 +484,34 @@
     }
   }
 
+  async function shareSavedTeam(id){
+    var team=auth.teams.filter(function(item){return Number(item.id)===Number(id)})[0];if(!team)return;
+    try{
+      var data=await api("team-share.php",{method:"POST",body:{teamId:Number(id)}});
+      await loadTeams();
+      var url=data.url||"";
+      if(navigator.share){
+        try{await navigator.share({title:team.name,text:"View my Pokémon team",url:url});return}catch(err){if(err&&err.name==="AbortError")return}
+      }
+      if(navigator.clipboard&&url){
+        await navigator.clipboard.writeText(url);
+        message("#teamPageMessage","Share link copied to clipboard.");
+      }else{
+        prompt("Share this read-only team link",url);
+      }
+    }catch(err){message("#teamPageMessage",err.message,true)}
+  }
+
+  async function revokeTeamShare(id){
+    var team=auth.teams.filter(function(item){return Number(item.id)===Number(id)})[0];if(!team)return;
+    if(!confirm('Revoke the public link for "'+team.name+'"?'))return;
+    try{
+      await api("team-share.php?teamId="+encodeURIComponent(id),{method:"DELETE"});
+      await loadTeams();
+      message("#teamPageMessage","Shared link revoked.");
+    }catch(err){message("#teamPageMessage",err.message,true)}
+  }
+
   async function deleteTeam(id){
     var team=auth.teams.filter(function(item){return Number(item.id)===Number(id)})[0];
     if(!team||!confirm('Delete "'+team.name+'"?'))return;
@@ -495,6 +561,8 @@
     $("#forgotForm").addEventListener("submit",forgot);
     $("#resetForm").addEventListener("submit",resetPassword);
     $("#profileForm").addEventListener("submit",saveProfile);
+    $("#changeEmailForm").addEventListener("submit",changeEmail);
+    $("#changePasswordForm").addEventListener("submit",changePassword);
     ["#profilePlayerName","#profilePlayerId","#profileYearOfBirth"].forEach(function(selector){
       $(selector).addEventListener("input",renderPlayQr);
     });
@@ -511,6 +579,8 @@
 
     $("#cloudTeamList").addEventListener("click",function(e){
       var load=e.target.closest("[data-load-team]");if(load){loadTeam(load.dataset.loadTeam);return}
+      var share=e.target.closest("[data-share-team]");if(share){shareSavedTeam(share.dataset.shareTeam);return}
+      var revoke=e.target.closest("[data-revoke-share]");if(revoke){revokeTeamShare(revoke.dataset.revokeShare);return}
       var rename=e.target.closest("[data-rename-team]");if(rename){renameTeam(rename.dataset.renameTeam);return}
       var duplicate=e.target.closest("[data-duplicate-team]");if(duplicate){duplicateTeam(duplicate.dataset.duplicateTeam);return}
       var del=e.target.closest("[data-delete-team]");if(del)deleteTeam(del.dataset.deleteTeam);

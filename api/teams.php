@@ -9,8 +9,12 @@ $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
 if ($method === 'GET') {
     $stmt = db()->prepare(
-        'SELECT id, name, game, payload, created_at, updated_at
-         FROM teams WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT 100'
+        'SELECT t.id, t.name, t.game, t.payload, t.created_at, t.updated_at,
+                EXISTS(SELECT 1 FROM team_shares s WHERE s.team_id = t.id) AS is_shared
+         FROM teams t
+         WHERE t.user_id = ?
+         ORDER BY t.updated_at DESC, t.id DESC
+         LIMIT 100'
     );
     $stmt->execute([$userId]);
     $teams = [];
@@ -24,6 +28,7 @@ if ($method === 'GET') {
             'payload' => $payload,
             'createdAt' => (string) $row['created_at'],
             'updatedAt' => (string) $row['updated_at'],
+            'isShared' => !empty($row['is_shared']),
         ];
     }
     json_response(['teams' => $teams]);

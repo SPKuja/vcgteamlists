@@ -1690,3 +1690,88 @@ main>*,
     max-width:100vw;
   }
 }
+
+/* Footer, account maintenance, sharing and shared team pages */
+.site-footer{
+  width:min(calc(100% - 36px),1180px);
+  margin:12px auto 92px;
+  padding:16px 0;
+  border-top:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  color:var(--muted);
+  font-size:10px;
+}
+.site-footer-links{display:flex;align-items:center;gap:8px}
+.site-footer a{color:inherit;text-decoration:none;font-weight:800}
+.site-footer a:hover{color:var(--accent)}
+.site-footer-powered strong{color:var(--text)}
+.standalone-footer{margin-bottom:24px}
+
+.account-security-card{
+  margin-top:22px;
+  padding:18px;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:#fafbff;
+}
+.account-update-form{margin-top:0}
+.account-update-form .button{width:100%}
+.account-security-divider{height:1px;background:var(--line);margin:20px 0}
+.account-security-card .account-message{margin-top:8px}
+
+.preview-actions{flex-wrap:wrap}
+
+.shared-team-shell{
+  width:min(calc(100% - 28px),1040px);
+  margin:0 auto;
+  padding:34px 0 20px;
+}
+.shared-team-head{margin-bottom:24px}
+.shared-team-head h1{font-size:clamp(38px,7vw,64px);line-height:1;letter-spacing:-.055em;margin:0}
+.shared-team-head p{margin:10px 0 0;color:var(--muted);font-size:14px}
+.shared-team-loading{padding:30px;text-align:center;color:var(--muted);font-weight:800}
+.shared-team-grid{display:grid;grid-template-columns:1fr;gap:14px}
+.shared-mon-card{
+  display:grid;
+  grid-template-columns:120px minmax(0,1fr);
+  gap:14px;
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:22px;
+  background:#fff;
+  box-shadow:var(--shadow-soft);
+}
+.shared-mon-art{display:grid;place-items:center;border-radius:18px;background:rgba(var(--accent-rgb),.06)}
+.shared-mon-art img{width:112px;height:112px;object-fit:contain}
+.shared-mon-copy{min-width:0}
+.shared-mon-copy h2{margin:0 0 10px;font-size:20px;letter-spacing:-.03em}
+.shared-mon-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.shared-mon-details>div{min-width:0;padding:8px 9px;border-radius:10px;background:#f7f7fa}
+.shared-mon-details small{display:block;color:var(--muted);font-size:8px;text-transform:uppercase;font-weight:850}
+.shared-mon-details strong{display:block;margin-top:2px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shared-mon-moves{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;list-style:none;padding:0;margin:10px 0 0}
+.shared-mon-moves li{padding:7px 9px;border:1px solid #e4e5eb;border-radius:9px;background:#fff;font-size:10px;font-weight:800}
+
+@media(min-width:760px){
+  .shared-team-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:699px){
+  .site-footer{
+    width:calc(100% - 28px);
+    margin-bottom:82px;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:8px;
+  }
+  .preview-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}
+  .preview-actions .button:last-child{grid-column:1/-1}
+  .account-security-card{padding:15px}
+  .shared-team-shell{padding-top:22px}
+  .shared-mon-card{grid-template-columns:92px minmax(0,1fr);padding:13px}
+  .shared-mon-art img{width:88px;height:88px}
+  .shared-mon-details{grid-template-columns:1fr}
+  .shared-mon-moves{grid-template-columns:1fr}
+}
