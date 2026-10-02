@@ -71,7 +71,15 @@
     return state.cards.reduce(function(sum,card){return sum+(Number(card.qty)||0)},0);
   }
   function isBasicEnergy(card){
-    return card.category==="Energy"&&String(card.energyType||"").toLowerCase()==="basic";
+    if(!card||card.category!=="Energy")return false;
+    var energyType=String(card.energyType||"").trim().toLowerCase();
+    if(energyType==="basic")return true;
+    if(energyType==="special")return false;
+
+    // Older/incomplete records may omit energyType. Only recognised Basic
+    // Energy names are exempt from the four-copy rule.
+    var name=String(card.name||"").trim().toLowerCase().replace(/^basic\s+/,"");
+    return /^(grass|fire|water|lightning|psychic|fighting|darkness|metal|fairy) energy$/.test(name);
   }
   function categoryCount(category){
     return state.cards.reduce(function(sum,card){return sum+(card.category===category?(Number(card.qty)||0):0)},0);
