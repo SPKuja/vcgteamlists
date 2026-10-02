@@ -24,14 +24,16 @@ jobs:
           test -f index.html
           test -f manifest.webmanifest
           test -f assets/js/app.js
+          test -f assets/js/tcg.js
           test -f assets/js/shared.js
           test -f shared/index.html
           node --check assets/js/app.js
           node --check assets/js/auth.js
+          node --check assets/js/tcg.js
           node --check assets/js/shared.js
           node - <<'NODE'
           const fs = require('fs');
-          for (const file of ['assets/js/app.js','assets/js/auth.js']) {
+          for (const file of ['assets/js/app.js','assets/js/auth.js','assets/js/tcg.js']) {
             const source = fs.readFileSync(file,'utf8');
             const bad = source.split('\n').filter(line => /(?<!\$)\$\([^)]*\)\.(forEach|map)\(/.test(line));
             if (bad.length) {
