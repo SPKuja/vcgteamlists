@@ -2118,7 +2118,9 @@ html.editor-open,body.editor-open{
 .tcg-card-effect:last-child{margin-bottom:0}
 .tcg-card-effect-head{display:flex;align-items:center;gap:7px;min-width:0}
 .tcg-card-effect-head strong{font-size:12px;line-height:1.3}
-.tcg-card-effect-head>span{font-size:8px;color:var(--muted);font-weight:800;margin-left:auto}
+.tcg-card-effect-head>span:not(.tcg-energy-cost){font-size:8px;color:var(--muted);font-weight:800;margin-left:auto}
+.tcg-card-effect-head>.tcg-energy-cost{margin-left:0}
+.tcg-card-effect-head>strong{margin-left:0;text-align:left}
 .tcg-card-effect p{font-size:10px;line-height:1.5;color:#5f6270;margin:7px 0 0}
 .tcg-attack-damage{margin-left:auto;font-size:13px;color:var(--text)}
 .tcg-energy-cost{display:inline-flex;gap:3px;flex:0 0 auto}
