@@ -7,6 +7,7 @@
   var searchTimer=null;
   var searchAbort=null;
   var setMetaCache={};
+  var setCodeCache={};
 
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
@@ -220,49 +221,58 @@
     candidates=candidates.map(normaliseSetCode).filter(Boolean);
     return candidates.indexOf(target)!==-1;
   }
-  async function searchCardReference(reference,signal){
-    var variants=collectorVariants(reference.localId);
-    var directCodes=[reference.code.toLowerCase()];
-    for(var d=0;d<directCodes.length;d++){
-      for(var v=0;v<variants.length;v++){
-        try{
-          var direct=await fetch(API+"/cards/"+encodeURIComponent(directCodes[d]+"-"+variants[v]),{signal:signal,cache:"default"});
-          if(direct.ok){
-            var directCard=await direct.json();
-            if(comparableCollector(directCard.localId)===comparableCollector(reference.localId))return [directCard];
-          }
-        }catch(err){
-          if(err&&err.name==="AbortError")throw err;
+  async function resolveSetIdByCode(code,signal){
+    var key=normaliseSetCode(code);
+    if(setCodeCache[key])return setCodeCache[key];
+
+    var queries=[
+      "abbreviations.official=eq:"+encodeURIComponent(key),
+      "id=eq:"+encodeURIComponent(key.toLowerCase()),
+      "tcgOnline=eq:"+encodeURIComponent(key)
+    ];
+
+    for(var i=0;i<queries.length;i++){
+      var response=await fetch(API+"/sets?"+queries[i],{signal:signal,cache:"default"});
+      if(!response.ok)continue;
+      var sets=await response.json();
+      if(Array.isArray(sets)&&sets.length){
+        var exact=sets.filter(function(set){
+          return normaliseSetCode(set.id)===key||normaliseSetCode(set.name)===key;
+        })[0]||sets[0];
+        if(exact&&exact.id){
+          setCodeCache[key]=String(exact.id);
+          return setCodeCache[key];
         }
       }
     }
+    return "";
+  }
+  async function searchCardReference(reference,signal){
+    var variants=collectorVariants(reference.localId);
+    var setId=await resolveSetIdByCode(reference.code,signal);
 
-    var candidates=[];
-    for(var i=0;i<variants.length;i++){
-      var response=await fetch(API+"/cards?localId="+encodeURIComponent(variants[i]),{signal:signal,cache:"default"});
-      if(!response.ok)continue;
-      var found=await response.json();
-      if(Array.isArray(found)){
-        found.forEach(function(card){
-          if(comparableCollector(card.localId)!==comparableCollector(reference.localId))return;
-          if(!candidates.some(function(existing){return existing.id===card.id}))candidates.push(card);
-        });
+    if(setId){
+      for(var i=0;i<variants.length;i++){
+        var response=await fetch(API+"/sets/"+encodeURIComponent(setId)+"/"+encodeURIComponent(variants[i]),{signal:signal,cache:"default"});
+        if(!response.ok)continue;
+        var card=await response.json();
+        if(card&&comparableCollector(card.localId)===comparableCollector(reference.localId))return [card];
       }
     }
-    if(!candidates.length)return [];
 
-    var bySet={};
-    candidates.forEach(function(card){
-      var setId=cardSetId(card);
-      if(setId)bySet[setId]=true;
-    });
-    var setIds=Object.keys(bySet).slice(0,80);
-    var sets=await Promise.all(setIds.map(function(setId){return getSetMeta(setId,signal)}));
-    var matchingIds={};
-    sets.forEach(function(set,index){
-      if(setMatchesCode(set,reference.code))matchingIds[setIds[index]]=true;
-    });
-    return candidates.filter(function(card){return !!matchingIds[cardSetId(card)]});
+    // Final fallback for codes that are themselves TCGdex set IDs.
+    for(var v=0;v<variants.length;v++){
+      try{
+        var direct=await fetch(API+"/cards/"+encodeURIComponent(reference.code.toLowerCase()+"-"+variants[v]),{signal:signal,cache:"default"});
+        if(direct.ok){
+          var directCard=await direct.json();
+          if(comparableCollector(directCard.localId)===comparableCollector(reference.localId))return [directCard];
+        }
+      }catch(err){
+        if(err&&err.name==="AbortError")throw err;
+      }
+    }
+    return [];
   }
   function renderSearchResults(cards){
     var target=$("#tcgSearchResults");if(!target)return;
