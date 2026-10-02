@@ -1122,7 +1122,7 @@
   }
 
   function wireItemSpriteFallbacks(root){
-    $("img[data-item-sources]",root).forEach(function(img){
+    $$("img[data-item-sources]",root).forEach(function(img){
       var sources=[];
       try{sources=JSON.parse(img.dataset.itemSources||"[]")}catch(e){}
       var index=0;
