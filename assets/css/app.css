@@ -2204,3 +2204,9 @@ body.tcg-preview-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .tcg-list-preview-row{grid-template-columns:34px minmax(0,1fr);gap:5px 8px}
   .tcg-list-preview-row small{grid-column:2;text-align:left}
 }
+
+
+/* Official Pokémon GO logo asset */
+.go-logo img{display:block;width:auto;height:auto;max-width:170px;max-height:64px;object-fit:contain;filter:drop-shadow(0 5px 12px rgba(0,0,0,.14))}
+.new-team-game .go-logo img{max-width:150px;max-height:54px}
+.go-cloud-mark img{max-width:92px!important;max-height:48px!important}

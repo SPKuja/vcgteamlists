@@ -184,7 +184,7 @@
     if(game==="champions")return '<div class="cloud-game-logos single" aria-hidden="true"><img src="/images/pokemon_champions.webp" alt=""></div>';
     if(game==="sv")return '<div class="cloud-game-logos dual" aria-hidden="true"><img src="/images/pokemon_scarlet.webp" alt=""><img src="/images/pokemon_violet.webp" alt=""></div>';
     if(game==="swsh")return '<div class="cloud-game-logos dual" aria-hidden="true"><img src="/images/pokemon_sword.webp" alt=""><img src="/images/pokemon_shield.webp" alt=""></div>';
-    if(game==="go")return '<div class="cloud-game-logos single generic go-cloud-mark" aria-hidden="true"><span>GO</span></div>';
+    if(game==="go")return '<div class="cloud-game-logos single go-cloud-mark" aria-hidden="true"><img src="/images/pokemon_go.svg" alt=""></div>';
     if(game==="tcg")return '<div class="cloud-game-logos single tcg-cloud-mark" aria-hidden="true"><img src="/images/pokemon_tcg.webp" alt=""></div>';
     return '<div class="cloud-game-logos single generic" aria-hidden="true"><img src="/images/pokemon.svg" alt=""></div>';
   }
