@@ -1924,3 +1924,58 @@ html.editor-open,body.editor-open{
   -webkit-overflow-scrolling:touch;
   touch-action:pan-y;
 }
+
+/* Exact Pokémon GO artwork + Shadow treatment */
+.go-shadow-art{
+  position:relative;
+  isolation:isolate;
+}
+.go-shadow-art::before{
+  content:"";
+  position:absolute;
+  z-index:0;
+  inset:10%;
+  border-radius:50%;
+  background:
+    radial-gradient(circle at 42% 44%,rgba(153,92,224,.54) 0 20%,rgba(96,44,154,.34) 38%,rgba(54,23,88,.04) 70%);
+  filter:blur(8px);
+  transform:scale(1.08);
+  pointer-events:none;
+}
+.go-shadow-art::after{
+  content:"";
+  position:absolute;
+  z-index:0;
+  inset:18% 14%;
+  border-radius:48% 52% 46% 54%;
+  background:
+    conic-gradient(from 35deg,transparent 0 11%,rgba(187,119,255,.32) 14% 20%,transparent 23% 48%,rgba(109,53,173,.28) 53% 59%,transparent 63%);
+  filter:blur(5px);
+  pointer-events:none;
+}
+.go-shadow-art img{
+  position:relative;
+  z-index:1;
+  filter:drop-shadow(0 0 6px rgba(102,45,168,.7)) drop-shadow(0 5px 8px rgba(31,20,46,.18));
+}
+.pokemon-image-wrap.go-shadow-art{
+  background:radial-gradient(circle,rgba(116,58,174,.17),rgba(var(--accent-rgb),.05) 68%);
+}
+.slot-img.go-shadow-art{
+  overflow:visible;
+}
+.shared-mon-art.go-shadow-art{
+  overflow:visible;
+}
+@media (prefers-reduced-motion:no-preference){
+  .editor-sheet .go-shadow-art::before{animation:goShadowPulse 3.8s ease-in-out infinite}
+}
+@keyframes goShadowPulse{
+  0%,100%{opacity:.74;transform:scale(1.03)}
+  50%{opacity:1;transform:scale(1.11)}
+}
+@media print{
+  .go-shadow-art::before{filter:blur(4mm);opacity:.7}
+  .go-shadow-art::after{display:none}
+  .go-shadow-art img{filter:drop-shadow(0 0 2.5mm rgba(92,39,150,.65))}
+}

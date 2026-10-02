@@ -10,8 +10,10 @@
   var ITEM_META_CACHE_KEY="vcg-item-meta-v1";
   var NATURE_META_CACHE_KEY="vcg-nature-meta-v1";
   var GO_DATA_CACHE_KEY="vcg-go-data-v1";
+  var GO_ART_CACHE_KEY="vcg-go-artwork-v1";
   var GO_POKEMON_URL="https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster/pokemon.json";
   var GO_MOVES_URL="https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster/moves.json";
+  var GO_POKEDEX_API="https://pokemon-go-api.github.io/pokemon-go-api/api/pokedex";
   var statKeys=["hp","attack","defense","specialAttack","specialDefense","speed"];
   var statLabels={hp:"HP",attack:"Atk",defense:"Def",specialAttack:"SpA",specialDefense:"SpD",speed:"Spe"};
   var gameConfig={
@@ -33,6 +35,7 @@
   var itemMetaCache=null;
   var natureMetaCache=null;
   var goData=null;
+  var goArtCache=null;
   var statsCache=null;
   var statsLoadedAt=0;
   var statsLoading=false;
@@ -67,7 +70,7 @@
   }
   function emptyStats(){return {hp:"",attack:"",defense:"",specialAttack:"",specialDefense:"",speed:""}}
   function blankMon(){
-    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",alignmentUp:"",alignmentDown:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),evs:null,ivs:null,moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""],goSpeciesId:"",goDex:null,goCP:"",goLevel:"",goIVs:{attack:"",defense:"",hp:""},goShadow:false,goFastMoves:[],goChargedMoves:[]};
+    return {speciesSlug:"",slug:"",name:"",form:"",availableForms:[],image:"",types:[],availableAbilities:[],availableMoves:[],ability:"",item:"",itemImage:"",gender:"",level:50,alignment:"",alignmentUp:"",alignmentDown:"",teraType:"",gigantamax:false,stats:emptyStats(),statPoints:emptyStats(),evs:null,ivs:null,moves:["","","",""],moveTypes:["","","",""],moveClasses:["","","",""],goSpeciesId:"",goDex:null,goCP:"",goLevel:"",goIVs:{attack:"",defense:"",hp:""},goShadow:false,goFastMoves:[],goChargedMoves:[],goArtworkKey:"",goArtworkSource:""};
   }
 
   function teamSize(game){
@@ -151,9 +154,180 @@
     return goData;
   }
 
-  function goArtworkUrl(mon){
-    var dex=Number(mon&&mon.dex)||0;
-    return dex?"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/"+dex+".png":"";
+  function loadGoArtCache(){
+    if(goArtCache)return goArtCache;
+    try{goArtCache=JSON.parse(localStorage.getItem(GO_ART_CACHE_KEY)||"{}")}catch(e){goArtCache={}}
+    return goArtCache;
+  }
+
+  function saveGoArtCache(){
+    try{localStorage.setItem(GO_ART_CACHE_KEY,JSON.stringify(goArtCache||{}))}catch(e){}
+  }
+
+  function goArtworkKey(mon){
+    return String((mon&&mon.speciesId)||(mon&&mon.goSpeciesId)||(mon&&mon.slug)||"")
+      .toLowerCase().replace(/_shadow$/,"");
+  }
+
+  function normaliseGoArtId(value){
+    return String(value||"").toLowerCase()
+      .replace(/\(shadow\)/g,"")
+      .replace(/[^a-z0-9]+/g,"_")
+      .replace(/^_+|_+$/g,"")
+      .replace(/_shadow$/,"")
+      .replace(/_alolan(?=_|$)/g,"_alola")
+      .replace(/_galarian(?=_|$)/g,"_galar")
+      .replace(/_hisuian(?=_|$)/g,"_hisui")
+      .replace(/_paldean(?=_|$)/g,"_paldea");
+  }
+
+  function goArtTokens(value){
+    return normaliseGoArtId(value).split("_").filter(Boolean);
+  }
+
+  function goArtScore(requested,candidate){
+    var req=goArtTokens(requested),cand=goArtTokens(candidate);
+    if(!req.length||!cand.length)return -999;
+    var reqKey=req.join("_"),candKey=cand.join("_");
+    if(reqKey===candKey)return 1000;
+    var score=0;
+    req.forEach(function(token){score+=cand.indexOf(token)!==-1?24:-12});
+    cand.forEach(function(token){if(req.indexOf(token)===-1)score-=4});
+    if(cand.indexOf("mega")!==-1&&req.indexOf("mega")===-1)score-=250;
+    if(cand.indexOf("gmax")!==-1&&req.indexOf("gmax")===-1)score-=250;
+    return score;
+  }
+
+  function goApiNameCandidates(speciesId){
+    var raw=String(speciesId||"").replace(/_shadow$/i,"").toUpperCase();
+    if(!raw)return [];
+    var values=[raw];
+    [
+      ["_ALOLAN","_ALOLA"],
+      ["_GALAR","_GALARIAN"],
+      ["_HISUI","_HISUIAN"],
+      ["_PALDEA","_PALDEAN"]
+    ].forEach(function(pair){
+      values.slice().forEach(function(value){
+        if(value.indexOf(pair[0])!==-1)values.push(value.replace(pair[0],pair[1]));
+        if(value.indexOf(pair[1])!==-1)values.push(value.replace(pair[1],pair[0]));
+      });
+    });
+    return values.filter(function(value,index){return value&&values.indexOf(value)===index});
+  }
+
+  function collectGoApiArtCandidates(payload){
+    var out=[];
+    function addPokemon(mon){
+      if(!mon||typeof mon!=="object")return;
+      if(mon.assets&&mon.assets.image){
+        out.push({
+          id:[mon.id,mon.formId].filter(Boolean).join("_"),
+          image:mon.assets.image,
+          source:"pokemon-go-api"
+        });
+      }
+      (mon.regionForms||[]).forEach(addPokemon);
+    }
+    addPokemon(payload);
+    (payload&&payload.assetForms||[]).forEach(function(asset){
+      if(asset&&asset.image){
+        out.push({
+          id:[payload.id,asset.form,asset.costume,asset.isFemale?"female":""].filter(Boolean).join("_"),
+          image:asset.image,
+          source:"pokemon-go-api"
+        });
+      }
+    });
+    return out;
+  }
+
+  async function resolvePokeApiGoArtwork(mon){
+    var dex=Number((mon&&mon.dex)||(mon&&mon.goDex))||0;
+    if(!dex)return "";
+    try{
+      var speciesRes=await fetch(API+"/pokemon-species/"+dex);
+      if(!speciesRes.ok)throw new Error("Species lookup failed");
+      var species=await speciesRes.json();
+      var requested=goArtworkKey(mon);
+      var varieties=(species.varieties||[]).slice().sort(function(a,b){
+        return goArtScore(requested,b.pokemon&&b.pokemon.name)-goArtScore(requested,a.pokemon&&a.pokemon.name)||
+          Number(b.is_default)-Number(a.is_default);
+      });
+      var chosen=varieties[0];
+      if(chosen&&chosen.pokemon&&chosen.pokemon.name){
+        var pokemonRes=await fetch(API+"/pokemon/"+encodeURIComponent(chosen.pokemon.name));
+        if(pokemonRes.ok){
+          var pokemon=await pokemonRes.json();
+          return (pokemon.sprites&&pokemon.sprites.other&&pokemon.sprites.other["official-artwork"]&&pokemon.sprites.other["official-artwork"].front_default)||
+            (pokemon.sprites&&pokemon.sprites.other&&pokemon.sprites.other.home&&pokemon.sprites.other.home.front_default)||
+            (pokemon.sprites&&pokemon.sprites.front_default)||"";
+        }
+      }
+    }catch(e){}
+    return "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/"+dex+".png";
+  }
+
+  async function resolveGoArtwork(mon){
+    var key=goArtworkKey(mon);
+    var dex=Number((mon&&mon.dex)||(mon&&mon.goDex))||0;
+    if(!key&&!dex)return {image:"",source:""};
+    var cache=loadGoArtCache();
+    var cacheKey=key||("dex_"+dex);
+    if(cache[cacheKey]&&cache[cacheKey].image)return cache[cacheKey];
+
+    var resolved=null;
+    var names=goApiNameCandidates(key);
+    for(var i=0;i<names.length&&!resolved;i++){
+      try{
+        var named=await fetch(GO_POKEDEX_API+"/name/"+encodeURIComponent(names[i])+".json",{cache:"default"});
+        if(!named.ok)continue;
+        var payload=await named.json();
+        if(payload&&payload.assets&&payload.assets.image){
+          resolved={image:payload.assets.image,source:"pokemon-go-api"};
+        }
+      }catch(e){}
+    }
+
+    if(!resolved&&dex){
+      try{
+        var byDex=await fetch(GO_POKEDEX_API+"/id/"+dex+".json",{cache:"default"});
+        if(byDex.ok){
+          var dexPayload=await byDex.json();
+          var candidates=collectGoApiArtCandidates(dexPayload).sort(function(a,b){
+            return goArtScore(key,b.id)-goArtScore(key,a.id);
+          });
+          if(candidates[0]&&candidates[0].image)resolved=candidates[0];
+        }
+      }catch(e){}
+    }
+
+    if(!resolved){
+      var fallback=await resolvePokeApiGoArtwork(mon);
+      resolved={image:fallback,source:"pokeapi-fallback"};
+    }
+
+    cache[cacheKey]=resolved;
+    saveGoArtCache();
+    return resolved;
+  }
+
+  async function hydrateGoArtwork(mons){
+    var changed=false;
+    await Promise.all((mons||[]).map(async function(mon){
+      if(!mon||!mon.goSpeciesId)return;
+      var key=goArtworkKey(mon);
+      if(mon.goArtworkKey===key&&mon.goArtworkSource==="pokemon-go-api"&&mon.image)return;
+      var art=await resolveGoArtwork(mon);
+      if(art.image&&mon.image!==art.image){mon.image=art.image;changed=true}
+      if(mon.goArtworkKey!==key||mon.goArtworkSource!==art.source){
+        mon.goArtworkKey=key;
+        mon.goArtworkSource=art.source;
+        changed=true;
+      }
+    }));
+    if(changed)saveState(true);
+    return changed;
   }
 
   function goMoveName(id){
@@ -451,7 +625,7 @@
           button.innerHTML=
             '<span class="slot-number">SLOT '+(index+1)+'</span>'+
             '<span class="slot-edit">Edit <span>›</span></span>'+
-            '<div class="slot-img">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
+            '<div class="slot-img'+(mon.goShadow?' go-shadow-art':'')+'">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
             '<div class="slot-copy">'+
               '<div class="slot-name">'+escapeHtml(mon.name)+'</div>'+
               '<div class="slot-types">'+types+'</div>'+
@@ -493,6 +667,11 @@
 
     var completedMons=state.team.filter(function(mon){return mon&&mon.name});
     renderTeamInsights(completedMons);
+    if(state.game==="go"&&completedMons.some(function(mon){
+      return mon.goSpeciesId&&(!mon.goArtworkKey||mon.goArtworkKey!==goArtworkKey(mon)||mon.goArtworkSource!=="pokemon-go-api");
+    })){
+      hydrateGoArtwork(completedMons).then(function(changed){if(changed)renderTeam()});
+    }
     if(state.game!=="go"&&completedMons.some(function(mon){return mon.item&&!mon.itemImage})){
       hydrateItemMeta(completedMons).then(function(changed){if(changed)renderTeam()});
     }
@@ -545,6 +724,10 @@
       $("#goIvDefense").value=ivs.defense!==undefined?ivs.defense:"";
       $("#goIvHp").value=ivs.hp!==undefined?ivs.hp:"";
       $("#goShadowInput").checked=!!mon.goShadow;
+      $("#goShadowInput").addEventListener("change",function(){
+        var imageWrap=$(".pokemon-image-wrap");
+        if(imageWrap)imageWrap.classList.toggle("go-shadow-art",this.checked);
+      });
       return;
     }
 
@@ -626,6 +809,8 @@
     var name=$("#editorPokemonName"),img=$("#editorPokemonImage"),empty=$(".empty-ball"),types=$("#typeRow");
     name.textContent=mon.name||"Choose a Pokémon";
     if(mon.image){img.src=mon.image;img.hidden=false;empty.style.display="none"}else{img.hidden=true;empty.style.display=""}
+    var imageWrap=$(".pokemon-image-wrap");
+    if(imageWrap)imageWrap.classList.toggle("go-shadow-art",state.game==="go"&&!!mon.goShadow);
     types.innerHTML=(mon.types||[]).map(function(t){return '<span class="type-pill">'+escapeHtml(t)+'</span>'}).join("");
     $("#selectedPokemon").dataset.speciesSlug=mon.speciesSlug||"";
     $("#selectedPokemon").dataset.slug=mon.slug||"";
@@ -766,7 +951,7 @@
       var entry=data.pokemon.filter(function(mon){return mon.speciesId===speciesId})[0];
       if(!entry)throw new Error("GO Pokémon not found");
       var shadow=(entry.tags||[]).indexOf("shadow")!==-1;
-      var name=entry.speciesName||prettyName(speciesId.replace(/_/g,"-"));
+      var name=(entry.speciesName||prettyName(speciesId.replace(/_/g,"-"))).replace(/\s*\(Shadow\)\s*$/i,"");
       var league=goLeagueInfo();
       var defaults=league.key&&entry.defaultIVs&&entry.defaultIVs[league.key]?entry.defaultIVs[league.key]:null;
       var mon=blankMon();
@@ -774,7 +959,6 @@
       mon.slug=speciesId;
       mon.name=name;
       mon.form="Standard";
-      mon.image=goArtworkUrl(entry);
       mon.types=(entry.types||[]).map(prettyName);
       mon.goSpeciesId=speciesId;
       mon.goDex=entry.dex||null;
@@ -782,6 +966,10 @@
       mon.goFastMoves=(entry.fastMoves||[]).map(goMoveSlug);
       mon.goChargedMoves=(entry.chargedMoves||[]).map(goMoveSlug);
       mon.availableMoves=mon.goFastMoves.concat(mon.goChargedMoves);
+      var artwork=await resolveGoArtwork(entry);
+      mon.image=artwork.image||"";
+      mon.goArtworkKey=goArtworkKey(entry);
+      mon.goArtworkSource=artwork.source||"";
       if(defaults){
         mon.goLevel=defaults[0];
         mon.goIVs={attack:defaults[1],defense:defaults[2],hp:defaults[3]};
@@ -805,8 +993,12 @@
       var entry=data.pokemon.filter(function(item){return item.speciesId===mon.goSpeciesId})[0];
       if(!entry)return;
       mon.goDex=entry.dex||mon.goDex;
+      mon.name=(entry.speciesName||mon.name||"").replace(/\s*\(Shadow\)\s*$/i,"");
       mon.types=(entry.types||[]).map(prettyName);
-      mon.image=mon.image||goArtworkUrl(entry);
+      var artwork=await resolveGoArtwork(entry);
+      if(artwork.image)mon.image=artwork.image;
+      mon.goArtworkKey=goArtworkKey(entry);
+      mon.goArtworkSource=artwork.source||"";
       mon.goFastMoves=(entry.fastMoves||[]).map(goMoveSlug);
       mon.goChargedMoves=(entry.chargedMoves||[]).map(goMoveSlug);
       mon.availableMoves=mon.goFastMoves.concat(mon.goChargedMoves);
@@ -1301,7 +1493,7 @@
         return '<div class="go-paper-move"><small>'+(index===0?"FAST":"CHARGED")+'</small><strong>'+escapeHtml(move)+'</strong></div>';
       }).join("");
       return '<article class="go-paper-mon">'+
-        '<div class="go-paper-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
+        '<div class="go-paper-art'+(mon.goShadow?' go-shadow-art':'')+'">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
         '<div class="go-paper-body">'+
           '<div class="go-paper-top"><div><h3>'+escapeHtml(mon.name)+'</h3>'+monTypePills(mon,false)+'</div>'+(mon.goShadow?'<span class="go-shadow-badge">Shadow</span>':'')+'</div>'+
           '<div class="go-paper-stats"><div><small>CP</small><strong>'+escapeHtml(mon.goCP||"—")+'</strong></div><div><small>Level</small><strong>'+escapeHtml(mon.goLevel||"—")+'</strong></div><div><small>IVs A/D/HP</small><strong>'+escapeHtml(ivs.attack||0)+' / '+escapeHtml(ivs.defense||0)+' / '+escapeHtml(ivs.hp||0)+'</strong></div></div>'+
@@ -1319,6 +1511,13 @@
       '<div class="go-paper-team">'+cards+'</div>'+
       '<p class="go-data-credit">PvP species and move data sourced from PvPoke gamemaster.</p>';
     renderGoPrint();
+    if(completed.some(function(mon){
+      return mon.goSpeciesId&&(!mon.goArtworkKey||mon.goArtworkKey!==goArtworkKey(mon)||mon.goArtworkSource!=="pokemon-go-api");
+    })){
+      hydrateGoArtwork(completed).then(function(changed){
+        if(changed&&$("#previewView").classList.contains("is-active"))renderGoPreview();
+      });
+    }
   }
 
   function renderGoPrint(){
@@ -1327,7 +1526,7 @@
     var cards=completed.map(function(mon){
       var ivs=mon.goIVs||{};
       return '<article class="go-print-mon">'+
-        '<div class="go-print-art">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
+        '<div class="go-print-art'+(mon.goShadow?' go-shadow-art':'')+'">'+(mon.image?'<img src="'+escapeHtml(mon.image)+'" alt="">':'')+'</div>'+
         '<div class="go-print-copy"><h2>'+escapeHtml(mon.name)+'</h2><p>CP '+escapeHtml(mon.goCP||"—")+' · Lv. '+escapeHtml(mon.goLevel||"—")+' · IVs '+escapeHtml(ivs.attack||0)+'/'+escapeHtml(ivs.defense||0)+'/'+escapeHtml(ivs.hp||0)+(mon.goShadow?" · Shadow":"")+'</p>'+
         '<ul>'+(mon.moves||[]).slice(0,3).filter(Boolean).map(function(move){return '<li>'+escapeHtml(move)+'</li>'}).join("")+'</ul></div>'+
       '</article>';
