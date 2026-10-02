@@ -1421,3 +1421,69 @@ input:focus,select:focus{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0
   .stats-pokemon-art,.stats-pokemon-art img{width:46px;height:46px}
   .stats-pokemon-bar{left:87px}
 }
+
+/* Stats readability pass */
+.stats-page-head p{font-size:15px}
+.stats-updated{font-size:12px;padding:9px 12px}
+.stats-metric{padding:20px}
+.stats-metric strong{font-size:30px}
+.stats-metric small{font-size:12px;line-height:1.3}
+.stats-panel{padding:21px}
+.stats-panel-head h2{font-size:23px}
+.stats-panel-note{font-size:11px}
+.stats-pokemon-row{
+  min-height:72px;
+  grid-template-columns:30px 62px 1fr;
+  gap:11px;
+  padding:8px 10px 11px;
+}
+.stats-pokemon-rank{width:28px;height:28px;font-size:11px}
+.stats-pokemon-art{width:62px;height:58px}
+.stats-pokemon-art img{width:64px;height:64px}
+.stats-pokemon-copy strong{font-size:14px}
+.stats-pokemon-copy span{font-size:11px;margin-top:4px}
+.stats-pokemon-bar{left:115px;right:10px;bottom:6px;height:4px}
+.stats-bar-row strong{font-size:13px}
+.stats-bar-row>div span{font-size:11px}
+.stats-ranked-row{
+  min-height:51px;
+  grid-template-columns:28px auto 1fr auto;
+  gap:10px;
+  padding:8px 10px;
+}
+.stats-ranked-row>img{width:32px;height:32px}
+.stats-rank{font-size:11px}
+.stats-ranked-copy strong{font-size:13px}
+.stats-ranked-copy>span{height:4px;margin-top:6px}
+.stats-ranked-value strong{font-size:13px}
+.stats-ranked-value small{font-size:9px;margin-top:2px}
+.stats-growth-grid strong{font-size:36px}
+.stats-growth-grid span{font-size:12px}
+.stats-privacy-note{font-size:11px;line-height:1.55}
+.stats-empty{font-size:12px}
+
+@media(max-width:699px){
+  .stats-page-head p{font-size:14px}
+  .stats-updated{font-size:11px}
+  .stats-metric strong{font-size:27px}
+  .stats-metric small{font-size:11px}
+  .stats-panel{padding:18px}
+  .stats-panel-head h2{font-size:22px}
+  .stats-panel-note{font-size:10px}
+  .stats-pokemon-copy strong{font-size:14px}
+  .stats-pokemon-copy span{font-size:11px}
+  .stats-bar-row strong{font-size:13px}
+  .stats-bar-row>div span{font-size:11px}
+  .stats-ranked-copy strong{font-size:13px}
+  .stats-ranked-value strong{font-size:13px}
+  .stats-ranked-value small{font-size:9px}
+  .stats-growth-grid span{font-size:11px}
+  .stats-privacy-note{font-size:11px}
+}
+@media(max-width:430px){
+  .stats-metric{padding:14px}
+  .stats-metric strong{font-size:24px}
+  .stats-pokemon-row{grid-template-columns:27px 52px 1fr;min-height:66px}
+  .stats-pokemon-art,.stats-pokemon-art img{width:52px;height:52px}
+  .stats-pokemon-bar{left:101px}
+}

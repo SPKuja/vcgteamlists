@@ -673,9 +673,24 @@
   }
 
   function saveEditor(){
-    var mon=collectEditor();
+    var mon;
+    try{
+      mon=collectEditor();
+    }catch(err){
+      console.error("Could not collect Pokémon details",err);
+      showToast("Could not save Pokémon — check the entered details");
+      return;
+    }
     if(!mon.name){showToast("Choose or enter a Pokémon first");return}
-    state.team[state.editingIndex]=mon;markDirty();renderTeam();closeEditor();showToast(mon.name+" saved");
+    state.team[state.editingIndex]=mon;
+    markDirty();
+    closeEditor();
+    try{
+      renderTeam();
+    }catch(err){
+      console.error("Pokémon saved, but the team overview could not refresh",err);
+    }
+    showToast(mon.name+" saved");
   }
 
   function removeEditor(){
@@ -1245,6 +1260,15 @@
     });
   }
 
+  function compactMonForExport(mon){
+    if(!mon)return null;
+    var copy=JSON.parse(JSON.stringify(mon));
+    delete copy.availableMoves;
+    delete copy.availableAbilities;
+    delete copy.availableForms;
+    return copy;
+  }
+
   window.VCGApp={
     exportTeam:function(){
       syncMeta(false);
@@ -1252,7 +1276,7 @@
         game:state.game,
         sheetMode:state.sheetMode,
         meta:state.meta,
-        team:state.team
+        team:state.team.map(compactMonForExport)
       }));
     },
     importTeam:function(payload){
