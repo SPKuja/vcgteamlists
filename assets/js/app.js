@@ -1255,7 +1255,7 @@
 
     if(onProgress)onProgress("Loading images…");
     await withTimeout(
-      Promise.all($("img",preview).map(waitForImage)),
+      Promise.all($$("img",preview).map(waitForImage)),
       6500,
       "Images took too long to prepare"
     ).catch(function(err){console.warn("PDF image wait timed out",err)});
