@@ -213,6 +213,11 @@
       set.tcgOnline,
       String(set.name||"").split(/\s+/)[0]
     ];
+    if(set.abbreviation&&typeof set.abbreviation==="object"){
+      Object.keys(set.abbreviation).forEach(function(key){
+        candidates.push(set.abbreviation[key]);
+      });
+    }
     if(set.abbreviations&&typeof set.abbreviations==="object"){
       Object.keys(set.abbreviations).forEach(function(key){
         candidates.push(set.abbreviations[key]);
@@ -226,7 +231,7 @@
     if(setCodeCache[key])return setCodeCache[key];
 
     var queries=[
-      "abbreviations.official=eq:"+encodeURIComponent(key),
+      "abbreviation.official=eq:"+encodeURIComponent(key),
       "id=eq:"+encodeURIComponent(key.toLowerCase()),
       "tcgOnline=eq:"+encodeURIComponent(key)
     ];
