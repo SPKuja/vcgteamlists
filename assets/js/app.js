@@ -1119,7 +1119,7 @@
       var pct=total?Math.round((count/total)*100):0;
       return '<div class="stats-ranked-row">'+
         '<span class="stats-rank">'+(index+1)+'</span>'+
-        (withImages&&row.image?'<img src="'+escapeHtml(row.image)+'" alt="" loading="lazy">':'')+
+        (withImages?'<img src="'+escapeHtml(row.image||("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/"+moveSlug(row.name)+".png"))+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'')+
         '<div class="stats-ranked-copy"><strong>'+escapeHtml(row.name||"—")+'</strong><span><i style="width:'+Math.max(6,Math.round((count/max)*100))+'%"></i></span></div>'+
         '<div class="stats-ranked-value"><strong>'+formatStatNumber(count)+'</strong>'+(total?'<small>'+pct+'%</small>':'')+'</div>'+
       '</div>';
@@ -1253,6 +1253,10 @@
 
       lines.forEach(function(line){
         if(/^Ability:\s*/i.test(line))set.ability=line.replace(/^Ability:\s*/i,"").trim();
+        else if(/^Gender:\s*/i.test(line)){
+          var importedGender=line.replace(/^Gender:\s*/i,"").trim().toUpperCase();
+          set.gender=importedGender==="M"?"Male":importedGender==="F"?"Female":set.gender;
+        }
         else if(/^Level:\s*/i.test(line))set.level=Math.max(1,Math.min(100,Number(line.replace(/^Level:\s*/i,"").trim())||50));
         else if(/^Tera Type:\s*/i.test(line))set.teraType=line.replace(/^Tera Type:\s*/i,"").trim();
         else if(/^EVs:\s*/i.test(line))set.evs=parseShowdownSpread(line.replace(/^EVs:\s*/i,""),set.evs);
@@ -1304,20 +1308,49 @@
     return out;
   }
 
+  function showdownFormMatchScore(requested,varietySlug){
+    if(varietySlug===requested)return 100;
+    if(varietySlug.indexOf(requested+"-")===0)return 90;
+
+    var simplified=varietySlug;
+    ["-mask","-form","-mode","-style","-cloak"].forEach(function(word){
+      if(simplified.endsWith(word))simplified=simplified.slice(0,-word.length);
+    });
+    if(simplified===requested)return 85;
+
+    var requestedParts=requested.split("-");
+    var varietyParts=varietySlug.split("-");
+    return requestedParts.filter(function(part){return varietyParts.indexOf(part)!==-1}).length;
+  }
+
   async function pokemonDataForShowdown(species){
     var requested=showdownSlug(species);
     if(!requested)throw new Error("Missing species");
+
     var res=await fetch(API+"/pokemon/"+encodeURIComponent(requested));
     if(res.ok)return res.json();
 
-    var speciesRes=await fetch(API+"/pokemon-species/"+encodeURIComponent(requested));
-    if(!speciesRes.ok)throw new Error("Pokémon not found");
-    var speciesData=await speciesRes.json();
-    var variety=(speciesData.varieties||[]).filter(function(v){return v.is_default})[0]||(speciesData.varieties||[])[0];
-    if(!variety)throw new Error("Pokémon form not found");
-    res=await fetch(API+"/pokemon/"+encodeURIComponent(variety.pokemon.name));
-    if(!res.ok)throw new Error("Pokémon form not found");
-    return res.json();
+    var parts=requested.split("-");
+    for(var cut=parts.length;cut>=1;cut--){
+      var speciesSlug=parts.slice(0,cut).join("-");
+      var speciesRes=await fetch(API+"/pokemon-species/"+encodeURIComponent(speciesSlug));
+      if(!speciesRes.ok)continue;
+
+      var speciesData=await speciesRes.json();
+      var varieties=(speciesData.varieties||[]).slice();
+      if(!varieties.length)continue;
+
+      varieties.sort(function(a,b){
+        var aScore=showdownFormMatchScore(requested,a.pokemon.name);
+        var bScore=showdownFormMatchScore(requested,b.pokemon.name);
+        return bScore-aScore||Number(b.is_default)-Number(a.is_default);
+      });
+
+      res=await fetch(API+"/pokemon/"+encodeURIComponent(varieties[0].pokemon.name));
+      if(res.ok)return res.json();
+    }
+
+    throw new Error("Pokémon not found");
   }
 
   async function hydrateShowdownSet(set){
