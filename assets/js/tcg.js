@@ -211,7 +211,13 @@
       set.id,
       set.tcgOnline,
       String(set.name||"").split(/\s+/)[0]
-    ].map(normaliseSetCode).filter(Boolean);
+    ];
+    if(set.abbreviations&&typeof set.abbreviations==="object"){
+      Object.keys(set.abbreviations).forEach(function(key){
+        candidates.push(set.abbreviations[key]);
+      });
+    }
+    candidates=candidates.map(normaliseSetCode).filter(Boolean);
     return candidates.indexOf(target)!==-1;
   }
   async function searchCardReference(reference,signal){
@@ -233,7 +239,7 @@
 
     var candidates=[];
     for(var i=0;i<variants.length;i++){
-      var response=await fetch(API+"/cards?localId="+encodeURIComponent(variants[i])+"&pagination:page=1&pagination:itemsPerPage=120",{signal:signal,cache:"default"});
+      var response=await fetch(API+"/cards?localId="+encodeURIComponent(variants[i]),{signal:signal,cache:"default"});
       if(!response.ok)continue;
       var found=await response.json();
       if(Array.isArray(found)){
