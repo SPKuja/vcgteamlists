@@ -1134,9 +1134,11 @@
       var baseId=goBaseSpeciesId(mon.goSpeciesId);
       var entry=goBaseEntry(data,baseId);
       if(!entry)return;
+      var shadowEntry=goShadowEntry(data,baseId);
       mon.goSpeciesId=baseId;
-      mon.goShadow=wasShadow;
-      mon.goShadowEligible=!!goShadowEntry(data,baseId)||(entry.tags||[]).indexOf("shadoweligible")!==-1;
+      mon.goShadowEligible=!!shadowEntry||(entry.tags||[]).indexOf("shadoweligible")!==-1;
+      mon.goShadow=wasShadow&&mon.goShadowEligible;
+      var variant=mon.goShadow&&shadowEntry?shadowEntry:entry;
       mon.goDex=entry.dex||mon.goDex;
       mon.name=(entry.speciesName||mon.name||"").replace(/\s*\(Shadow\)\s*$/i,"");
       mon.types=(entry.types||[]).map(prettyName);
@@ -1144,10 +1146,21 @@
       if(artwork.image)mon.image=artwork.image;
       mon.goArtworkKey=goArtworkKey(entry);
       mon.goArtworkSource=artwork.source||"";
-      mon.goFastMoves=(entry.fastMoves||[]).map(goMoveSlug);
-      mon.goChargedMoves=(entry.chargedMoves||[]).map(goMoveSlug);
+      mon.goFastMoves=(variant.fastMoves||[]).map(goMoveSlug);
+      mon.goChargedMoves=(variant.chargedMoves||[]).map(goMoveSlug);
       mon.availableMoves=mon.goFastMoves.concat(mon.goChargedMoves);
       setEditorPokemon(mon);
+      var shadowInput=$("#goShadowInput");
+      if(shadowInput){
+        shadowInput.checked=mon.goShadow;
+        shadowInput.disabled=!mon.goShadowEligible;
+      }
+      var shadowLabel=shadowInput&&shadowInput.closest(".inline-toggle");
+      if(shadowLabel){
+        shadowLabel.classList.toggle("is-disabled",!mon.goShadowEligible);
+        var shadowNote=shadowLabel.querySelector("small");
+        if(shadowNote)shadowNote.textContent=mon.goShadowEligible?"Uses the Shadow version where available.":"No Shadow version is available for this Pokémon.";
+      }
       $("#pokemonSearch").value=mon.name||entry.speciesName||"";
     }catch(e){}
   }
