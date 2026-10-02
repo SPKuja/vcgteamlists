@@ -598,11 +598,12 @@
     navigate("team");
   }
 
-  var routePaths={home:"/",team:"/team-builder",teams:"/my-teams",stats:"/stats",preview:"/preview",profile:"/profile"};
+  var routePaths={home:"/",team:"/team-builder",deck:"/deck-builder",teams:"/my-teams",stats:"/stats",preview:"/preview",profile:"/profile"};
 
   function routeTarget(pathname){
     var path=(pathname||"/").replace(/\/+$/,"")||"/";
     if(path==="/team-builder")return "team";
+    if(path==="/deck-builder")return "deck";
     if(path==="/my-teams")return "teams";
     if(path==="/stats")return "stats";
     if(path==="/preview")return "preview";
@@ -613,7 +614,7 @@
   function navigate(target,options){
     options=options||{};
     var current=$(".view.is-active");
-    var currentTarget=current&&current.id==="builderView"?"team":current&&current.id==="previewView"?"preview":current&&current.id==="teamsView"?"teams":current&&current.id==="statsView"?"stats":current&&current.id==="profileView"?"profile":"home";
+    var currentTarget=current&&current.id==="builderView"?"team":current&&current.id==="tcgView"?"deck":current&&current.id==="previewView"?"preview":current&&current.id==="teamsView"?"teams":current&&current.id==="statsView"?"stats":current&&current.id==="profileView"?"profile":"home";
     var leavingBuild=(currentTarget==="team"||currentTarget==="preview")&&(target!=="team"&&target!=="preview");
 
     if(leavingBuild&&!options.skipBuildGuard){
@@ -626,7 +627,7 @@
     }
 
     $$(".view").forEach(function(v){v.classList.remove("is-active")});
-    var id=target==="home"?"homeView":target==="preview"?"previewView":target==="teams"?"teamsView":target==="stats"?"statsView":target==="profile"?"profileView":"builderView";
+    var id=target==="home"?"homeView":target==="deck"?"tcgView":target==="preview"?"previewView":target==="teams"?"teamsView":target==="stats"?"statsView":target==="profile"?"profileView":"builderView";
     $("#"+id).classList.add("is-active");
     $$(".bottom-nav button").forEach(function(b){b.classList.toggle("is-active",b.dataset.nav===target)});
     if(target==="preview")renderPreview();
@@ -2621,7 +2622,7 @@
     window.addEventListener("popstate",function(){
       var requestedTarget=routeTarget(location.pathname);
       var current=$(".view.is-active");
-      var currentTarget=current&&current.id==="builderView"?"team":current&&current.id==="previewView"?"preview":current&&current.id==="teamsView"?"teams":current&&current.id==="statsView"?"stats":current&&current.id==="profileView"?"profile":"home";
+      var currentTarget=current&&current.id==="builderView"?"team":current&&current.id==="tcgView"?"deck":current&&current.id==="previewView"?"preview":current&&current.id==="teamsView"?"teams":current&&current.id==="statsView"?"stats":current&&current.id==="profileView"?"profile":"home";
       if(!navigate(requestedTarget,{skipHistory:true,instant:true})){
         history.pushState({target:currentTarget},"",routePaths[currentTarget]||"/");
       }

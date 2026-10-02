@@ -8,10 +8,11 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.3">
+  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.4">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
-  <script defer src="/assets/js/app.js?v=1.0.5"></script>
+  <script defer src="/assets/js/app.js?v=1.0.6"></script>
   <script defer src="/assets/js/auth.js?v=0.6.3"></script>
+  <script defer src="/assets/js/tcg.js?v=0.1.0"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -33,11 +34,11 @@
       <section class="view is-active" id="homeView" aria-labelledby="homeTitle">
         <div class="hero">
           <span class="eyebrow">Tournament prep, without the spreadsheet</span>
-          <h1 id="homeTitle">Build a team sheet that looks as good as your team.</h1>
+          <h1 id="homeTitle">Build the list you need for game day.</h1>
         </div>
 
         <div class="section-heading">
-          <div><span class="eyebrow">Step 1</span><h2>Choose your game</h2></div>
+          <div><span class="eyebrow">Step 1</span><h2>Choose your format</h2></div>
         </div>
 
         <div class="game-grid">
@@ -107,6 +108,21 @@
             </div>
           </button>
 
+          <button class="game-card tcg" data-select-deck>
+            <div class="home-game-logos single generic tcg-wordmark" aria-hidden="true">
+              <span>Pokémon TCG</span>
+            </div>
+            <div class="tcg-card-fan" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="game-copy">
+              <span class="game-kicker">Play! Pokémon</span>
+              <h3>Pokémon TCG</h3>
+              <p>Build a 60-card tournament deck with card search, counts and legality checks.</p>
+              <span class="choose-link">Build a TCG deck <span>→</span></span>
+            </div>
+          </button>
+
           <button class="game-card custom" data-select-game="custom">
             <div class="home-game-logos single generic" aria-hidden="true">
               <img src="/images/pokemon.svg" alt="">
@@ -124,6 +140,61 @@
           </button>
         </div>
 
+      </section>
+
+      <section class="view tcg-view" id="tcgView" aria-labelledby="tcgTitle">
+        <div class="tcg-page-head">
+          <div>
+            <button class="back-link" data-nav="home">← Choose another format</button>
+            <span class="eyebrow">Pokémon TCG <span class="experimental-badge">Beta</span></span>
+            <h1 id="tcgTitle">Deck Builder</h1>
+            <p>Build a tournament deck, keep the counts honest, and turn it into a clean deck list.</p>
+          </div>
+          <div class="tcg-total-card" aria-live="polite">
+            <strong id="tcgDeckTotal">0</strong>
+            <span>/ 60 cards</span>
+          </div>
+        </div>
+
+        <section class="details-card tcg-details-card">
+          <div class="section-heading compact">
+            <div><span class="eyebrow">Deck details</span><h2>Your tournament deck</h2></div>
+            <button class="text-button" id="tcgClearDeck" type="button">Clear deck</button>
+          </div>
+          <div class="details-grid">
+            <label><span>Deck name</span><input id="tcgDeckName" maxlength="100" autocomplete="off" placeholder="e.g. Dragapult / Dusknoir"></label>
+            <div class="tcg-format-field">
+              <span>Format</span>
+              <strong>Standard</strong>
+              <small>Legality warnings use the card data available from TCGdex.</small>
+            </div>
+          </div>
+        </section>
+
+        <div class="tcg-builder-layout">
+          <section class="details-card tcg-search-panel">
+            <div class="section-heading compact">
+              <div><span class="eyebrow">Card library</span><h2>Add cards</h2></div>
+            </div>
+            <label class="search-field tcg-search-field">
+              <span>Search by card name</span>
+              <div class="search-input-wrap"><span>⌕</span><input id="tcgCardSearch" autocomplete="off" placeholder="Start typing, e.g. Iono"></div>
+            </label>
+            <p class="field-hint">Choose the exact printing so the set and collector number are correct on your deck list.</p>
+            <div class="tcg-search-status" id="tcgSearchStatus" role="status" aria-live="polite">Search for a card to start building.</div>
+            <div class="tcg-search-results" id="tcgSearchResults"></div>
+          </section>
+
+          <section class="details-card tcg-deck-panel">
+            <div class="tcg-deck-summary">
+              <div><small>Pokémon</small><strong id="tcgPokemonCount">0</strong></div>
+              <div><small>Trainers</small><strong id="tcgTrainerCount">0</strong></div>
+              <div><small>Energy</small><strong id="tcgEnergyCount">0</strong></div>
+            </div>
+            <div class="tcg-validation" id="tcgValidation" aria-live="polite"></div>
+            <div class="tcg-deck-groups" id="tcgDeckGroups"></div>
+          </section>
+        </div>
       </section>
 
       <section class="view" id="builderView" aria-labelledby="builderTitle">
@@ -526,8 +597,8 @@
     <div class="new-team-modal">
       <header class="new-team-modal-head">
         <div>
-          <span class="eyebrow">New team</span>
-          <h2 id="newTeamDialogTitle">Choose your game</h2>
+          <span class="eyebrow">New build</span>
+          <h2 id="newTeamDialogTitle">Choose your format</h2>
         </div>
         <button class="icon-button" id="closeNewTeamDialog" type="button" aria-label="Close game selector">×</button>
       </header>
@@ -570,6 +641,14 @@
           <div class="new-team-game-copy">
             <strong>Pokémon GO</strong>
             <span>3 Pokémon · CP · IVs · PvP moves</span>
+          </div>
+        </button>
+
+        <button class="new-team-game tcg" type="button" data-select-deck>
+          <div class="new-team-game-logos single generic tcg-wordmark" aria-hidden="true"><span>Pokémon TCG</span></div>
+          <div class="new-team-game-copy">
+            <strong>Pokémon TCG</strong>
+            <span>60 cards · Deck list · Legality checks</span>
           </div>
         </button>
 
