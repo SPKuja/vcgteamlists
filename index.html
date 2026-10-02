@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/assets/css/app.css?v=1.0.3">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
   <script defer src="/assets/js/app.js?v=1.0.4"></script>
-  <script defer src="/assets/js/auth.js?v=0.6.2"></script>
+  <script defer src="/assets/js/auth.js?v=0.6.3"></script>
 </head>
 <body data-game="champions">
   <div class="app-shell">
@@ -450,7 +450,7 @@
                       </div>
                     </div>
                   </div>
-                  <p class="play-qr-intro">Generated from your Player name, Player ID and year of birth. We’re currently testing the expiry rule against official Play! Pokémon Access codes.</p>
+                  <p class="play-qr-intro">Generated from your Player name, Player ID and year of birth. The QR code refreshes automatically each month.</p>
                   <div class="play-qr-layout">
                     <div class="play-qr-box" id="playQrBox">
                       <div class="play-qr-placeholder" id="playQrPlaceholder">
@@ -464,7 +464,6 @@
                       <div><small>Last initial</small><strong id="playQrLast">—</strong></div>
                       <div><small>Player ID</small><strong id="playQrPlayerId">—</strong></div>
                       <div><small>Birth year</small><strong id="playQrBirthYear">—</strong></div>
-                      <div class="play-qr-expiry"><small>Assumed expiry</small><strong id="playQrExpiry">—</strong></div>
                     </div>
                   </div>
                   <div class="play-qr-warning">

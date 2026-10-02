@@ -91,7 +91,7 @@
 
   function playQrExpiryDate(){
     var now=new Date();
-    var last=new Date(now.getFullYear()+10,now.getMonth()+1,0);
+    var last=new Date(now.getFullYear(),now.getMonth()+1,0);
     return last.getFullYear()+"-"+String(last.getMonth()+1).padStart(2,"0")+"-"+String(last.getDate()).padStart(2,"0");
   }
 
@@ -140,7 +140,6 @@
     $("#playQrLast").textContent=names.lastInitial||"—";
     $("#playQrPlayerId").textContent=playerId||"—";
     $("#playQrBirthYear").textContent=birthYear||"—";
-    $("#playQrExpiry").textContent=expiry;
 
     var ready=!!(names.first&&names.lastInitial&&playerId&&/^\d{4}$/.test(birthYear));
     var canvas=$("#playQrCanvas"),placeholder=$("#playQrPlaceholder");
