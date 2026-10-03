@@ -42,6 +42,7 @@
   var toastTimer=null;
   var editorScrollLockY=0;
   var championsImportSlots=[null,null];
+  var championsOcrRunning=false;
 
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
@@ -2442,6 +2443,12 @@
     });
     var status=$("#championsImportStatus");
     if(status){status.textContent="";status.classList.remove("is-error","is-success")}
+    var progress=$("#championsOcrProgress");
+    if(progress)progress.hidden=true;
+    var results=$("#championsOcrResults");
+    if(results)results.hidden=true;
+    var grid=$("#championsOcrGrid");
+    if(grid)grid.innerHTML="";
     var button=$("#checkChampionsScreenshots");
     if(button)button.disabled=true;
   }
@@ -2588,7 +2595,7 @@
     try{
       var loaded=await loadChampionsImage(file);
       var detection=analyseChampionsLayout(loaded.image);
-      championsImportSlots[index]={file:file,objectUrl:loaded.objectUrl,detection:detection};
+      championsImportSlots[index]={file:file,objectUrl:loaded.objectUrl,image:loaded.image,detection:detection};
 
       $("#championsPreviewImage"+index).src=loaded.objectUrl;
       $("#championsEmpty"+index).hidden=true;
@@ -2611,6 +2618,305 @@
     }
   }
 
+
+  function championsNormaliseText(value){
+    return String(value||"").toLowerCase().replace(/[^a-z0-9]+/g,"");
+  }
+
+  function championsEditDistance(a,b){
+    a=String(a||"");b=String(b||"");
+    if(!a.length)return b.length;
+    if(!b.length)return a.length;
+    var previous=new Array(b.length+1),current=new Array(b.length+1);
+    for(var j=0;j<=b.length;j++)previous[j]=j;
+    for(var i=1;i<=a.length;i++){
+      current[0]=i;
+      for(var k=1;k<=b.length;k++){
+        var cost=a.charAt(i-1)===b.charAt(k-1)?0:1;
+        current[k]=Math.min(current[k-1]+1,previous[k]+1,previous[k-1]+cost);
+      }
+      var swap=previous;previous=current;current=swap;
+    }
+    return previous[b.length];
+  }
+
+  function championsBestResourceMatch(text,list,minScore){
+    var needle=championsNormaliseText(text);
+    if(!needle||needle.length<2)return null;
+    var best=null,bestScore=0;
+    (list||[]).forEach(function(slug){
+      var candidate=championsNormaliseText(slug);
+      if(!candidate)return;
+      var score;
+      if(candidate===needle)score=1;
+      else if(candidate.indexOf(needle)!==-1||needle.indexOf(candidate)!==-1){
+        score=Math.min(candidate.length,needle.length)/Math.max(candidate.length,needle.length);
+        score=Math.max(score,.78);
+      }else{
+        score=1-(championsEditDistance(needle,candidate)/Math.max(needle.length,candidate.length));
+      }
+      if(score>bestScore){bestScore=score;best=slug}
+    });
+    return bestScore>=(minScore||.62)?{slug:best,label:prettyName(best),score:bestScore}:null;
+  }
+
+  function championsBuildOcrCanvas(slot){
+    var image=slot.image;
+    var naturalWidth=image.naturalWidth||image.width;
+    var naturalHeight=image.naturalHeight||image.height;
+    var targetWidth=Math.max(1600,Math.min(2200,naturalWidth));
+    var scale=targetWidth/naturalWidth;
+    var canvas=document.createElement("canvas");
+    canvas.width=Math.round(naturalWidth*scale);
+    canvas.height=Math.round(naturalHeight*scale);
+    var ctx=canvas.getContext("2d",{willReadFrequently:true});
+    ctx.fillStyle="#fff";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    slot.detection.cards.forEach(function(box){
+      var sx=Math.max(0,Math.floor(box.x*naturalWidth));
+      var sy=Math.max(0,Math.floor(box.y*naturalHeight));
+      var sw=Math.min(naturalWidth-sx,Math.ceil(box.width*naturalWidth));
+      var sh=Math.min(naturalHeight-sy,Math.ceil(box.height*naturalHeight));
+      var dx=Math.floor(box.x*canvas.width);
+      var dy=Math.floor(box.y*canvas.height);
+      var dw=Math.ceil(box.width*canvas.width);
+      var dh=Math.ceil(box.height*canvas.height);
+      ctx.drawImage(image,sx,sy,sw,sh,dx,dy,dw,dh);
+
+      var imageData=ctx.getImageData(dx,dy,dw,dh);
+      var data=imageData.data;
+      for(var p=0;p<data.length;p+=4){
+        var r=data[p],g=data[p+1],b=data[p+2];
+        var luminance=.299*r+.587*g+.114*b;
+        var spread=Math.max(r,g,b)-Math.min(r,g,b);
+        var isText=luminance>158||(luminance>140&&spread<42);
+        var v=isText?0:255;
+        data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
+      }
+      ctx.putImageData(imageData,dx,dy);
+    });
+    return canvas;
+  }
+
+  function championsParseTsv(tsv){
+    var words=[];
+    String(tsv||"").split(/\r?\n/).slice(1).forEach(function(line){
+      if(!line)return;
+      var cols=line.split("\t");
+      if(cols.length<12||cols[0]!=="5")return;
+      var text=cols.slice(11).join("\t").trim();
+      var confidence=Number(cols[10]);
+      if(!text||confidence<18)return;
+      var left=Number(cols[6]),top=Number(cols[7]),width=Number(cols[8]),height=Number(cols[9]);
+      words.push({text:text,confidence:confidence,x:left,y:top,width:width,height:height,cx:left+width/2,cy:top+height/2});
+    });
+    return words;
+  }
+
+  function championsWordsByCard(words,detection,canvas){
+    return detection.cards.map(function(box){
+      var x=box.x*canvas.width,y=box.y*canvas.height,w=box.width*canvas.width,h=box.height*canvas.height;
+      return words.filter(function(word){
+        return word.cx>=x&&word.cx<=x+w&&word.cy>=y&&word.cy<=y+h;
+      }).map(function(word){
+        return Object.assign({},word,{
+          relX:(word.cx-x)/w,
+          relY:(word.cy-y)/h,
+          relW:word.width/w,
+          relH:word.height/h
+        });
+      });
+    });
+  }
+
+  function championsGroupLines(words,tolerance){
+    var sorted=(words||[]).slice().sort(function(a,b){return a.relY-b.relY||a.relX-b.relX});
+    var lines=[];
+    sorted.forEach(function(word){
+      var line=null;
+      for(var i=0;i<lines.length;i++){
+        if(Math.abs(lines[i].y-word.relY)<(tolerance||.075)){line=lines[i];break}
+      }
+      if(!line){line={y:word.relY,words:[]};lines.push(line)}
+      line.words.push(word);
+      line.y=line.words.reduce(function(total,item){return total+item.relY},0)/line.words.length;
+    });
+    lines.sort(function(a,b){return a.y-b.y});
+    lines.forEach(function(line){
+      line.words.sort(function(a,b){return a.relX-b.relX});
+      line.text=line.words.map(function(word){return word.text}).join(" ").replace(/\s+/g," ").trim();
+    });
+    return lines;
+  }
+
+  function championsExtractName(cardWords,pokemon){
+    var top=cardWords.filter(function(word){return word.relY<.26&&word.relX>.07&&word.relX<.48});
+    var lines=championsGroupLines(top,.065);
+    var raw=lines.length?lines[0].text:"";
+    var match=championsBestResourceMatch(raw,pokemon,.76);
+    return {raw:raw,match:match};
+  }
+
+  function championsParseMovesCard(cardWords,resources){
+    var name=championsExtractName(cardWords,resources.pokemon);
+    var left=cardWords.filter(function(word){return word.relX<.5&&word.relY>.25});
+    var right=cardWords.filter(function(word){return word.relX>=.5&&word.relY>.12});
+    var leftLines=championsGroupLines(left,.075).filter(function(line){return line.text});
+    var moveLines=championsGroupLines(right,.065).filter(function(line){return line.text}).slice(0,4);
+    var abilityLine=leftLines[0]&&leftLines[0].text||"";
+    var itemLine=leftLines[1]&&leftLines[1].text||"";
+    return {
+      name:name,
+      ability:{raw:abilityLine,match:championsBestResourceMatch(abilityLine,resources.abilities,.62)},
+      item:{raw:itemLine,match:championsBestResourceMatch(itemLine,resources.items,.62)},
+      moves:moveLines.map(function(line){return {raw:line.text,match:championsBestResourceMatch(line.text,resources.moves,.58)}})
+    };
+  }
+
+  function championsStatPair(line){
+    var values=String(line&&line.text||"").match(/\d+/g)||[];
+    values=values.map(function(value){return Number(value)}).filter(function(value){return Number.isFinite(value)});
+    if(values.length>=2)return {value:values[values.length-2],sp:values[values.length-1],raw:line.text};
+    if(values.length===1)return {value:values[0],sp:null,raw:line.text};
+    return {value:null,sp:null,raw:line&&line.text||""};
+  }
+
+  function championsParseStatsCard(cardWords,resources){
+    var name=championsExtractName(cardWords,resources.pokemon);
+    var leftLines=championsGroupLines(cardWords.filter(function(word){return word.relX<.5&&word.relY>.24}),.07).slice(0,3);
+    var rightLines=championsGroupLines(cardWords.filter(function(word){return word.relX>=.5&&word.relY>.24}),.07).slice(0,3);
+    var keysLeft=["hp","attack","defense"],keysRight=["specialAttack","specialDefense","speed"];
+    var stats={};
+    keysLeft.forEach(function(key,index){stats[key]=championsStatPair(leftLines[index])});
+    keysRight.forEach(function(key,index){stats[key]=championsStatPair(rightLines[index])});
+    return {name:name,stats:stats};
+  }
+
+  function championsOcrField(value){
+    if(!value)return '<span class="champions-ocr-missing">Unresolved</span>';
+    if(value.match)return '<strong>'+escapeHtml(value.match.label)+'</strong>';
+    if(value.raw)return '<span class="champions-ocr-raw">'+escapeHtml(value.raw)+'</span>';
+    return '<span class="champions-ocr-missing">Unresolved</span>';
+  }
+
+  function championsRenderOcrResults(team){
+    var grid=$("#championsOcrGrid");
+    grid.innerHTML=team.map(function(mon,index){
+      var species=mon.name&&mon.name.match
+        ? '<strong>'+escapeHtml(mon.name.match.label)+'</strong>'
+        : '<strong class="champions-ocr-unresolved">Species unresolved</strong>'+(mon.name&&mon.name.raw?'<small>Read: '+escapeHtml(mon.name.raw)+'</small>':'<small>Name could not be read confidently</small>');
+      var moves=(mon.moves||[]).map(function(move,moveIndex){
+        return '<span><b>'+(moveIndex+1)+'</b>'+championsOcrField(move)+'</span>';
+      }).join("");
+      var stats=statKeys.map(function(key){
+        var value=mon.stats&&mon.stats[key]||{};
+        return '<span><small>'+escapeHtml(statLabels[key])+'</small><strong>'+(value.value==null?"—":escapeHtml(value.value))+'</strong><em>'+(value.sp==null?"?":escapeHtml(value.sp))+' SP</em></span>';
+      }).join("");
+      return '<article class="champions-ocr-card">'+
+        '<header><span class="champions-ocr-slot">Slot '+(index+1)+'</span><div>'+species+'</div></header>'+
+        '<div class="champions-ocr-detail"><span>Ability</span>'+championsOcrField(mon.ability)+'</div>'+
+        '<div class="champions-ocr-detail"><span>Item</span>'+championsOcrField(mon.item)+'</div>'+
+        '<div class="champions-ocr-moves">'+moves+'</div>'+
+        '<div class="champions-ocr-stats">'+stats+'</div>'+
+      '</article>';
+    }).join("");
+    $("#championsOcrResults").hidden=false;
+  }
+
+  function championsSetOcrProgress(label,progress){
+    var wrap=$("#championsOcrProgress");
+    if(wrap)wrap.hidden=false;
+    $("#championsOcrProgressLabel").textContent=label||"Reading screenshots…";
+    var percent=Math.max(0,Math.min(100,Math.round((progress||0)*100)));
+    $("#championsOcrProgressPercent").textContent=percent+"%";
+    $("#championsOcrProgressBar").style.width=percent+"%";
+  }
+
+  async function championsRecogniseSlot(worker,slot,label,offset,span){
+    var canvas=championsBuildOcrCanvas(slot);
+    championsSetOcrProgress(label,offset);
+    var result=await worker.recognize(canvas,{tessedit_pageseg_mode:"11"},{tsv:true,text:true});
+    championsSetOcrProgress(label,offset+span);
+    return {words:championsParseTsv(result.data&&result.data.tsv),canvas:canvas};
+  }
+
+  async function readChampionsTeam(){
+    var status=$("#championsImportStatus");
+    var first=championsImportSlots[0],second=championsImportSlots[1];
+    var movesSlot=first.detection.kind==="moves"?first:second;
+    var statsSlot=first.detection.kind==="stats"?first:second;
+    var button=$("#checkChampionsScreenshots");
+
+    if(!window.Tesseract||typeof window.Tesseract.createWorker!=="function"){
+      throw new Error("The OCR engine could not be loaded. Check your connection and try again.");
+    }
+
+    championsOcrRunning=true;
+    button.disabled=true;
+    button.textContent="Reading team…";
+    $("#championsOcrResults").hidden=true;
+    status.textContent="Loading the local OCR engine…";
+    status.classList.remove("is-error","is-success");
+
+    var resourcePromise=Promise.all([
+      ensurePokemonList(),
+      ensureResourceList("ability"),
+      ensureResourceList("item"),
+      ensureResourceList("move")
+    ]);
+
+    var activeStage={label:"Loading OCR…",base:0,span:.12};
+    var worker=await window.Tesseract.createWorker("eng",1,{
+      logger:function(message){
+        if(!message||typeof message.progress!=="number")return;
+        championsSetOcrProgress(activeStage.label,activeStage.base+message.progress*activeStage.span);
+      }
+    });
+
+    try{
+      var resourcesRaw=await resourcePromise;
+      var resources={pokemon:resourcesRaw[0],abilities:resourcesRaw[1],items:resourcesRaw[2],moves:resourcesRaw[3]};
+
+      activeStage={label:"Reading Moves & More…",base:.12,span:.39};
+      var movesRead=await championsRecogniseSlot(worker,movesSlot,"Reading Moves & More…",.12,.39);
+
+      activeStage={label:"Reading Stats…",base:.51,span:.39};
+      var statsRead=await championsRecogniseSlot(worker,statsSlot,"Reading Stats…",.51,.39);
+
+      championsSetOcrProgress("Matching recognised text…",.93);
+      var movesCards=championsWordsByCard(movesRead.words,movesSlot.detection,movesRead.canvas).map(function(words){
+        return championsParseMovesCard(words,resources);
+      });
+      var statsCards=championsWordsByCard(statsRead.words,statsSlot.detection,statsRead.canvas).map(function(words){
+        return championsParseStatsCard(words,resources);
+      });
+
+      var team=[];
+      for(var i=0;i<6;i++){
+        var moves=movesCards[i]||{},stats=statsCards[i]||{};
+        var name=(moves.name&&moves.name.match)?moves.name:(stats.name&&stats.name.match)?stats.name:(moves.name&&moves.name.raw)?moves.name:stats.name;
+        team.push({
+          name:name||{raw:"",match:null},
+          ability:moves.ability||{raw:"",match:null},
+          item:moves.item||{raw:"",match:null},
+          moves:moves.moves||[],
+          stats:stats.stats||{}
+        });
+      }
+
+      championsRenderOcrResults(team);
+      championsSetOcrProgress("OCR preview ready",1);
+      status.textContent="First OCR pass complete. Review the six slots below — unresolved fields are being left blank rather than guessed.";
+      status.classList.add("is-success");
+    }finally{
+      try{await worker.terminate()}catch(e){}
+      championsOcrRunning=false;
+      button.disabled=false;
+      button.textContent="Read again";
+    }
+  }
+
   function openChampionsImport(){
     if(state.game!=="champions")return;
     resetChampionsImporter();
@@ -2627,8 +2933,9 @@
     document.body.classList.remove("champions-import-open");
   }
 
-  function checkChampionsScreenshots(event){
+  async function checkChampionsScreenshots(event){
     event.preventDefault();
+    if(championsOcrRunning)return;
     var status=$("#championsImportStatus");
     var first=championsImportSlots[0]&&championsImportSlots[0].detection;
     var second=championsImportSlots[1]&&championsImportSlots[1].detection;
@@ -2655,8 +2962,18 @@
       return;
     }
 
-    status.textContent="Both Champions screens are recognised: 6 team panels on Moves & More and 6 on Stats. This layout is ready for the OCR import stage.";
-    status.classList.add("is-success");
+    status.textContent="Both layouts are recognised. Reading the team now…";
+    try{
+      await readChampionsTeam();
+    }catch(error){
+      championsOcrRunning=false;
+      var button=$("#checkChampionsScreenshots");
+      if(button){button.disabled=false;button.textContent="Try again"}
+      var progress=$("#championsOcrProgress");
+      if(progress)progress.hidden=true;
+      status.textContent=error&&error.message?error.message:"The screenshots could not be read.";
+      status.classList.add("is-error");
+    }
   }
 
   function openShowdownImport(){
