@@ -8,9 +8,10 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.13">
+  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.14">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
-  <script defer src="/assets/js/app.js?v=1.0.7"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+  <script defer src="/assets/js/app.js?v=1.0.8"></script>
   <script defer src="/assets/js/auth.js?v=0.7.1"></script>
   <script defer src="/assets/js/tcg.js?v=0.4.0"></script>
 </head>
@@ -774,7 +775,7 @@
         <button class="icon-button" id="closeChampionsImport" type="button" aria-label="Close Champions screenshot importer">×</button>
       </header>
 
-      <p class="champions-import-intro">Add the <strong>Moves &amp; More</strong> and <strong>Stats</strong> screens from Pokémon Champions. Either order is fine. This first beta pass checks the screenshot layout and finds all six team panels across different screen sizes.</p>
+      <p class="champions-import-intro">Add the <strong>Moves &amp; More</strong> and <strong>Stats</strong> screens from Pokémon Champions. Either order is fine. The importer first finds all six team panels, then reads the visible team details locally on your device.</p>
 
       <div class="champions-upload-grid">
         <label class="champions-upload-card" data-champions-drop="0" for="championsScreenshot0">
@@ -824,9 +825,28 @@
       </div>
 
       <div class="champions-import-status" id="championsImportStatus" role="status" aria-live="polite"></div>
+
+      <div class="champions-ocr-progress" id="championsOcrProgress" hidden>
+        <div class="champions-ocr-progress-copy">
+          <strong id="championsOcrProgressLabel">Preparing OCR…</strong>
+          <span id="championsOcrProgressPercent">0%</span>
+        </div>
+        <div class="champions-ocr-progress-track"><i id="championsOcrProgressBar"></i></div>
+        <small>The first read can take a little longer while the OCR engine loads.</small>
+      </div>
+
+      <section class="champions-ocr-results" id="championsOcrResults" hidden aria-live="polite">
+        <div class="champions-ocr-results-head">
+          <div><span class="eyebrow">OCR preview</span><h3>What I can read</h3></div>
+          <span class="experimental-badge">Beta</span>
+        </div>
+        <p>This is a diagnostic preview for now — it does not change your team yet. Uncertain fields are left unresolved rather than guessed.</p>
+        <div class="champions-ocr-grid" id="championsOcrGrid"></div>
+      </section>
+
       <div class="champions-import-actions">
         <button class="button secondary" id="cancelChampionsImport" type="button">Cancel</button>
-        <button class="button primary" id="checkChampionsScreenshots" type="submit" disabled>Check screenshots</button>
+        <button class="button primary" id="checkChampionsScreenshots" type="submit" disabled>Read team</button>
       </div>
     </form>
   </dialog>
