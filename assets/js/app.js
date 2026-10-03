@@ -2700,7 +2700,7 @@
         var v=isText?0:255;
         data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
       }
-      ctx.putImageData(imageData,dx,dy,cardWidth,cardHeight);
+      ctx.putImageData(imageData,dx,dy);
 
       cards.push({
         x:dx/canvas.width,
