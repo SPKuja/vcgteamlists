@@ -2664,53 +2664,40 @@
     var image=slot.image;
     var naturalWidth=image.naturalWidth||image.width;
     var naturalHeight=image.naturalHeight||image.height;
-    var cardWidth=1000,cardHeight=260,gap=28,margin=24;
+    var targetWidth=Math.max(1800,Math.min(2600,naturalWidth));
+    var scale=targetWidth/naturalWidth;
     var canvas=document.createElement("canvas");
-    canvas.width=margin*2+cardWidth*2+gap;
-    canvas.height=margin*2+cardHeight*3+gap*2;
+    canvas.width=Math.round(naturalWidth*scale);
+    canvas.height=Math.round(naturalHeight*scale);
     var ctx=canvas.getContext("2d",{willReadFrequently:true});
     ctx.fillStyle="#fff";
     ctx.fillRect(0,0,canvas.width,canvas.height);
-    var cards=[];
 
-    slot.detection.cards.forEach(function(box,index){
-      var sourceX=box.x*naturalWidth;
-      var sourceY=box.y*naturalHeight;
-      var sourceWidth=box.width*naturalWidth;
-      var sourceHeight=box.height*naturalHeight;
-      var padX=sourceWidth*.018,padY=sourceHeight*.075;
-      var sx=Math.max(0,Math.floor(sourceX-padX));
-      var sy=Math.max(0,Math.floor(sourceY-padY));
-      var sr=Math.min(naturalWidth,Math.ceil(sourceX+sourceWidth+padX));
-      var sb=Math.min(naturalHeight,Math.ceil(sourceY+sourceHeight+padY));
-      var sw=Math.max(1,sr-sx),sh=Math.max(1,sb-sy);
+    slot.detection.cards.forEach(function(box){
+      var sx=Math.max(0,Math.floor(box.x*naturalWidth));
+      var sy=Math.max(0,Math.floor(box.y*naturalHeight));
+      var sw=Math.min(naturalWidth-sx,Math.ceil(box.width*naturalWidth));
+      var sh=Math.min(naturalHeight-sy,Math.ceil(box.height*naturalHeight));
+      var dx=Math.floor(box.x*canvas.width);
+      var dy=Math.floor(box.y*canvas.height);
+      var dw=Math.ceil(box.width*canvas.width);
+      var dh=Math.ceil(box.height*canvas.height);
+      ctx.drawImage(image,sx,sy,sw,sh,dx,dy,dw,dh);
 
-      var col=index%2,row=Math.floor(index/2);
-      var dx=margin+col*(cardWidth+gap);
-      var dy=margin+row*(cardHeight+gap);
-      ctx.drawImage(image,sx,sy,sw,sh,dx,dy,cardWidth,cardHeight);
-
-      var imageData=ctx.getImageData(dx,dy,cardWidth,cardHeight);
+      var imageData=ctx.getImageData(dx,dy,dw,dh);
       var data=imageData.data;
       for(var p=0;p<data.length;p+=4){
         var r=data[p],g=data[p+1],b=data[p+2];
         var luminance=.299*r+.587*g+.114*b;
         var spread=Math.max(r,g,b)-Math.min(r,g,b);
-        var isText=luminance>148||(luminance>132&&spread<50);
+        var isText=luminance>158||(luminance>140&&spread<42);
         var v=isText?0:255;
         data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
       }
       ctx.putImageData(imageData,dx,dy);
-
-      cards.push({
-        x:dx/canvas.width,
-        y:dy/canvas.height,
-        width:cardWidth/canvas.width,
-        height:cardHeight/canvas.height
-      });
     });
 
-    return {canvas:canvas,detection:{cards:cards}};
+    return {canvas:canvas,detection:slot.detection};
   }
 
   function championsParseTsv(tsv){
@@ -2833,10 +2820,63 @@
     }catch(e){return []}
   }
 
+  function championsSpeciesFromMegaStone(mon){
+    var item=mon&&mon.item&&mon.item.match&&mon.item.match.slug||"";
+    if(!item)return null;
+    var special={
+      "charizardite-x":"charizard",
+      "charizardite-y":"charizard",
+      "mewtwonite-x":"mewtwo",
+      "mewtwonite-y":"mewtwo"
+    };
+    if(special[item])return special[item];
+    if(/ite$/.test(item)){
+      var base=item.replace(/ite$/,"");
+      if(base&&base.length>=4)return base;
+    }
+    return null;
+  }
+
+  async function championsPokemonMoveSet(slug){
+    if(!slug)return null;
+    try{
+      var res=await fetch(API+"/pokemon/"+encodeURIComponent(slug));
+      if(!res.ok)return null;
+      var data=await res.json();
+      var set={};
+      (data.moves||[]).forEach(function(entry){
+        if(entry&&entry.move&&entry.move.name)set[entry.move.name]=true;
+      });
+      return set;
+    }catch(e){return null}
+  }
+
+  async function championsValidateMovesForSpecies(mon){
+    var slug=mon&&mon.name&&mon.name.match&&mon.name.match.slug;
+    if(!slug)return;
+    var allowed=await championsPokemonMoveSet(slug);
+    if(!allowed)return;
+    (mon.moves||[]).forEach(function(move){
+      if(move&&move.match&&!allowed[move.match.slug]){
+        move.rejected=move.match;
+        move.match=null;
+      }
+    });
+  }
+
   async function championsResolveSpeciesFromEvidence(mon){
+    var megaBase=championsSpeciesFromMegaStone(mon);
+    if(megaBase){
+      mon.name={
+        raw:mon.name&&mon.name.raw||"",
+        match:{slug:megaBase,label:championsEvidencePokemonName(megaBase),score:1,source:"item-evidence"}
+      };
+      return mon.name;
+    }
+
     var sources=[];
-    if(mon.ability&&mon.ability.match)sources.push({kind:"ability",slug:mon.ability.match.slug,weight:3});
-    if(mon.item&&mon.item.match)sources.push({kind:"item",slug:mon.item.match.slug,weight:5});
+    if(mon.ability&&mon.ability.match)sources.push({kind:"ability",slug:mon.ability.match.slug,weight:4});
+    if(mon.item&&mon.item.match)sources.push({kind:"item",slug:mon.item.match.slug,weight:2});
     (mon.moves||[]).forEach(function(move){
       if(move&&move.match)sources.push({kind:"move",slug:move.match.slug,weight:1});
     });
@@ -2870,7 +2910,14 @@
     var topStrong=top.score>=Math.max(3,Math.ceil(evidenceMax*.58));
     var clearlyAhead=top.score>=second.score+1;
 
-    if(directBest&&directBest.score>=Math.max(2,top.score-1)){
+    var abilityIndex=sources.findIndex(function(source){return source.kind==="ability"});
+    var abilitySupportsDirect=true;
+    if(direct&&abilityIndex!==-1){
+      var abilityList=lists[abilityIndex]||[];
+      abilitySupportsDirect=abilityList.some(function(slug){return slug===direct||slug.indexOf(direct+"-")===0});
+    }
+
+    if(directBest&&abilitySupportsDirect&&directBest.score>=Math.max(2,top.score-1)){
       mon.name.match={
         slug:directBest.slug,
         label:championsEvidencePokemonName(directBest.slug),
@@ -2977,7 +3024,7 @@
     var grid=$("#championsOcrGrid");
     grid.innerHTML=team.map(function(mon,index){
       var species=mon.name&&mon.name.match
-        ? '<strong>'+escapeHtml(mon.name.match.label)+'</strong>'+(mon.name.match.source==="evidence"?'<small>Matched from ability & moves</small>':mon.name.match.source==="ocr+evidence"?'<small>OCR verified against team details</small>':'')
+        ? '<strong>'+escapeHtml(mon.name.match.label)+'</strong>'+(mon.name.match.source==="evidence"?'<small>Matched from team details</small>':mon.name.match.source==="ocr+evidence"?'<small>OCR verified against team details</small>':mon.name.match.source==="item-evidence"?'<small>Matched from held item</small>':'')
         : '<strong class="champions-ocr-unresolved">Species unresolved</strong>'+(mon.name&&mon.name.raw?'<small>Read: '+escapeHtml(mon.name.raw)+'</small>':'<small>Name could not be read confidently</small>');
       var moves=(mon.moves||[]).map(function(move,moveIndex){
         return '<span><b>'+(moveIndex+1)+'</b>'+championsOcrField(move)+'</span>';
@@ -3084,6 +3131,7 @@
 
       championsSetOcrProgress("Cross-checking species…",.96);
       await Promise.all(team.map(championsResolveSpeciesFromEvidence));
+      await Promise.all(team.map(championsValidateMovesForSpecies));
       championsRenderOcrResults(team);
       championsSetOcrProgress("OCR preview ready",1);
       status.textContent="First OCR pass complete. Review the six slots below — unresolved fields are being left blank rather than guessed.";
