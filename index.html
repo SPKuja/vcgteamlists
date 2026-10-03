@@ -10,8 +10,7 @@
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/css/app.css?v=1.0.14">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-  <script defer src="/assets/js/app.js?v=1.0.15"></script>
+  <script defer src="/assets/js/app.js?v=1.1.0"></script>
   <script defer src="/assets/js/auth.js?v=0.7.1"></script>
   <script defer src="/assets/js/tcg.js?v=0.4.0"></script>
 </head>
@@ -832,12 +831,12 @@
           <span id="championsOcrProgressPercent">0%</span>
         </div>
         <div class="champions-ocr-progress-track"><i id="championsOcrProgressBar"></i></div>
-        <small>The first read can take a little longer while the OCR engine loads.</small>
+        <small>The first PaddleOCR v2 read downloads its local models and can take longer. Later reads should be faster.</small>
       </div>
 
       <section class="champions-ocr-results" id="championsOcrResults" hidden aria-live="polite">
         <div class="champions-ocr-results-head">
-          <div><span class="eyebrow">OCR preview</span><h3>What I can read</h3></div>
+          <div><span class="eyebrow">OCR v2 preview</span><h3>What I can read</h3></div>
           <span class="experimental-badge">Beta</span>
         </div>
         <p>This is a diagnostic preview for now — it does not change your team yet. Uncertain fields are left unresolved rather than guessed.</p>
