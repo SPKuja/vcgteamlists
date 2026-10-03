@@ -3067,6 +3067,164 @@
     };
   }
 
+
+  function championsBuildMoveFallbackCanvas(slot,indexes){
+    var image=slot.image;
+    var naturalWidth=image.naturalWidth||image.width;
+    var naturalHeight=image.naturalHeight||image.height;
+    var cropWidth=980,cropHeight=220,gap=24,margin=20;
+    var canvas=document.createElement("canvas");
+    canvas.width=margin*2+cropWidth;
+    canvas.height=margin*2+(cropHeight+gap)*indexes.length-gap;
+    var ctx=canvas.getContext("2d",{willReadFrequently:true});
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
+    var cards=[];
+
+    indexes.forEach(function(cardIndex,row){
+      var box=slot.detection.cards[cardIndex];
+      var sx=(box.x+box.width*.48)*naturalWidth;
+      var sy=(box.y+box.height*.01)*naturalHeight;
+      var sw=box.width*.51*naturalWidth;
+      var sh=box.height*.98*naturalHeight;
+      var dx=margin,dy=margin+row*(cropHeight+gap);
+
+      ctx.drawImage(image,sx,sy,sw,sh,dx,dy,cropWidth,cropHeight);
+
+      var imageData=ctx.getImageData(dx,dy,cropWidth,cropHeight);
+      var data=imageData.data;
+      for(var p=0;p<data.length;p+=4){
+        var r=data[p],g=data[p+1],b=data[p+2];
+        var lum=.299*r+.587*g+.114*b;
+        var v=lum>142?0:255;
+        data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
+      }
+      ctx.putImageData(imageData,dx,dy);
+      cards.push({
+        x:dx/canvas.width,y:dy/canvas.height,
+        width:cropWidth/canvas.width,height:cropHeight/canvas.height
+      });
+    });
+    return {canvas:canvas,detection:{cards:cards},indexes:indexes.slice()};
+  }
+
+  async function championsFallbackMoves(worker,slot,parsedCards,resources){
+    var indexes=[];
+    parsedCards.forEach(function(card,index){
+      var recognised=(card.moves||[]).filter(function(move){return move&&move.match}).length;
+      if(recognised<4)indexes.push(index);
+    });
+    if(!indexes.length)return;
+
+    var prepared=championsBuildMoveFallbackCanvas(slot,indexes);
+    var result=await worker.recognize(prepared.canvas,{tessedit_pageseg_mode:"11"},{tsv:true,text:true});
+    var words=championsParseTsv(result.data&&result.data.tsv);
+    var fallbackCards=championsWordsByCard(words,prepared.detection,prepared.canvas);
+
+    fallbackCards.forEach(function(cardWords,row){
+      var cardIndex=prepared.indexes[row];
+      var lines=championsGroupLines(cardWords,.075).filter(function(line){return line.text});
+      var fallback=championsMoveMatches(lines,resources.moves);
+      var count=fallback.filter(function(move){return move&&move.match}).length;
+      var current=(parsedCards[cardIndex].moves||[]).filter(function(move){return move&&move.match}).length;
+      if(count>current)parsedCards[cardIndex].moves=fallback;
+    });
+  }
+
+  function championsBuildStatsFallbackCanvas(slot){
+    var image=slot.image;
+    var naturalWidth=image.naturalWidth||image.width;
+    var naturalHeight=image.naturalHeight||image.height;
+    var cellWidth=300,cellHeight=105,gap=14,margin=18;
+    var canvas=document.createElement("canvas");
+    canvas.width=margin*2+cellWidth*6+gap*5;
+    canvas.height=margin*2+cellHeight*6+gap*5;
+    var ctx=canvas.getContext("2d",{willReadFrequently:true});
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
+    var cells=[];
+    var rowRanges=[[.22,.48],[.47,.72],[.71,.985]];
+
+    slot.detection.cards.forEach(function(box,cardIndex){
+      statKeys.forEach(function(key,statIndex){
+        var rightHalf=statIndex>=3;
+        var row=rightHalf?statIndex-3:statIndex;
+        var x0=rightHalf?.60:.10;
+        var x1=rightHalf?.995:.495;
+        var y0=rowRanges[row][0],y1=rowRanges[row][1];
+
+        var sx=(box.x+box.width*x0)*naturalWidth;
+        var sy=(box.y+box.height*y0)*naturalHeight;
+        var sw=box.width*(x1-x0)*naturalWidth;
+        var sh=box.height*(y1-y0)*naturalHeight;
+
+        var col=statIndex,gridRow=cardIndex;
+        var dx=margin+col*(cellWidth+gap);
+        var dy=margin+gridRow*(cellHeight+gap);
+        ctx.drawImage(image,sx,sy,sw,sh,dx,dy,cellWidth,cellHeight);
+
+        var imageData=ctx.getImageData(dx,dy,cellWidth,cellHeight);
+        var data=imageData.data;
+        for(var p=0;p<data.length;p+=4){
+          var r=data[p],g=data[p+1],b=data[p+2];
+          var lum=.299*r+.587*g+.114*b;
+          var v=lum>150?0:255;
+          data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
+        }
+        ctx.putImageData(imageData,dx,dy);
+        cells.push({
+          cardIndex:cardIndex,key:key,
+          x:dx/canvas.width,y:dy/canvas.height,
+          width:cellWidth/canvas.width,height:cellHeight/canvas.height
+        });
+      });
+    });
+
+    return {canvas:canvas,cells:cells};
+  }
+
+  function championsParseNumberCell(words,cell,canvas){
+    var x=cell.x*canvas.width,y=cell.y*canvas.height,w=cell.width*canvas.width,h=cell.height*canvas.height;
+    var values=words.filter(function(word){
+      return word.cx>=x&&word.cx<=x+w&&word.cy>=y&&word.cy<=y+h;
+    }).sort(function(a,b){return a.cx-b.cx}).map(function(word){
+      var digits=String(word.text||"").replace(/\D/g,"");
+      return digits?Number(digits):null;
+    }).filter(function(value){return value!=null&&Number.isFinite(value)});
+
+    if(!values.length)return {value:null,sp:null};
+    if(values.length>=2)return {value:values[0],sp:values[values.length-1]};
+    if(values[0]>32)return {value:values[0],sp:null};
+    return {value:null,sp:values[0]};
+  }
+
+  async function championsFallbackStats(worker,slot,parsedCards){
+    var prepared=championsBuildStatsFallbackCanvas(slot);
+    if(worker.setParameters){
+      await worker.setParameters({
+        tessedit_char_whitelist:"0123456789",
+        tessedit_pageseg_mode:"11"
+      });
+    }
+
+    var result=await worker.recognize(prepared.canvas,{tessedit_pageseg_mode:"11"},{tsv:true,text:true});
+    var words=championsParseTsv(result.data&&result.data.tsv);
+
+    prepared.cells.forEach(function(cell){
+      var parsed=championsParseNumberCell(words,cell,prepared.canvas);
+      var target=parsedCards[cell.cardIndex]&&parsedCards[cell.cardIndex].stats[cell.key];
+      if(!target)return;
+      if((target.value==null||target.value<20)&&parsed.value!=null&&parsed.value>=20&&parsed.value<=999)target.value=parsed.value;
+      if(target.sp==null&&parsed.sp!=null&&parsed.sp>=0&&parsed.sp<=32)target.sp=parsed.sp;
+    });
+
+    parsedCards.forEach(function(card){championsRepairStatPoints(card.stats)});
+    if(worker.setParameters){
+      await worker.setParameters({
+        tessedit_char_whitelist:"",
+        tessedit_pageseg_mode:"11"
+      });
+    }
+  }
+
   async function readChampionsTeam(){
     var status=$("#championsImportStatus");
     var first=championsImportSlots[0],second=championsImportSlots[1];
@@ -3110,13 +3268,18 @@
       activeStage={label:"Reading Stats…",base:.51,span:.39};
       var statsRead=await championsRecogniseSlot(worker,statsSlot,"Reading Stats…",.51,.39);
 
-      championsSetOcrProgress("Matching recognised text…",.93);
+      championsSetOcrProgress("Matching recognised text…",.90);
       var movesCards=championsWordsByCard(movesRead.words,movesRead.detection,movesRead.canvas).map(function(words){
         return championsParseMovesCard(words,resources);
       });
       var statsCards=championsWordsByCard(statsRead.words,statsRead.detection,statsRead.canvas).map(function(words){
         return championsParseStatsCard(words,resources);
       });
+
+      championsSetOcrProgress("Recovering missed moves…",.91);
+      await championsFallbackMoves(worker,movesSlot,movesCards,resources);
+      championsSetOcrProgress("Recovering stat values…",.94);
+      await championsFallbackStats(worker,statsSlot,statsCards);
 
       var team=[];
       for(var i=0;i<6;i++){
@@ -3131,7 +3294,7 @@
         });
       }
 
-      championsSetOcrProgress("Cross-checking species…",.96);
+      championsSetOcrProgress("Cross-checking species…",.97);
       await Promise.all(team.map(championsResolveSpeciesFromEvidence));
       await Promise.all(team.map(championsValidateMovesForSpecies));
       championsRenderOcrResults(team);
