@@ -2758,28 +2758,179 @@
     return {raw:raw,match:match};
   }
 
+
+  function championsBestLineMatch(lines,list,minScore){
+    var best=null;
+    (lines||[]).forEach(function(line){
+      var match=championsBestResourceMatch(line.text,list,minScore);
+      if(!match)return;
+      if(!best||match.score>best.match.score)best={line:line,match:match};
+    });
+    return best;
+  }
+
+  function championsMoveMatches(lines,moves){
+    var matched=[];
+    (lines||[]).forEach(function(line){
+      var match=championsBestResourceMatch(line.text,moves,.61);
+      if(!match)return;
+      if(matched.some(function(entry){return entry.match.slug===match.slug}))return;
+      matched.push({raw:line.text,match:match,y:line.y});
+    });
+    matched.sort(function(a,b){return a.y-b.y});
+    matched=matched.slice(0,4);
+    while(matched.length<4)matched.push({raw:"",match:null});
+    return matched;
+  }
+
+  function championsEvidencePokemonName(slug){
+    var value=String(slug||"");
+    var regional=value.match(/^(.+)-(alola|galar|hisui|paldea)$/);
+    if(regional){
+      var region={alola:"Alolan",galar:"Galarian",hisui:"Hisuian",paldea:"Paldean"}[regional[2]];
+      return prettyName(regional[1])+" — "+region+" Form";
+    }
+    var mega=value.match(/^(.+)-mega(?:-(x|y))?$/);
+    if(mega)return prettyName(mega[1])+" — Mega"+(mega[2]?" "+mega[2].toUpperCase():"");
+    return prettyName(value);
+  }
+
+  async function championsPokemonEvidenceList(kind,slug){
+    if(!slug)return [];
+    try{
+      var endpoint=kind==="ability"
+        ? API+"/ability/"+encodeURIComponent(slug)
+        : API+"/move/"+encodeURIComponent(slug);
+      var res=await fetch(endpoint);
+      if(!res.ok)return [];
+      var data=await res.json();
+      var entries=kind==="ability"?(data.pokemon||[]):(data.learned_by_pokemon||[]);
+      return entries.map(function(entry){
+        return kind==="ability"
+          ? entry.pokemon&&entry.pokemon.name
+          : entry&&entry.name;
+      }).filter(Boolean);
+    }catch(e){return []}
+  }
+
+  async function championsResolveSpeciesFromEvidence(mon){
+    var sources=[];
+    if(mon.ability&&mon.ability.match)sources.push({kind:"ability",slug:mon.ability.match.slug,weight:3});
+    (mon.moves||[]).forEach(function(move){
+      if(move&&move.match)sources.push({kind:"move",slug:move.match.slug,weight:1});
+    });
+    if(sources.length<2)return mon.name;
+
+    var lists=await Promise.all(sources.map(function(source){
+      return championsPokemonEvidenceList(source.kind,source.slug);
+    }));
+    var scores={};
+    lists.forEach(function(list,index){
+      var weight=sources[index].weight;
+      list.forEach(function(slug){scores[slug]=(scores[slug]||0)+weight});
+    });
+
+    var ranked=Object.keys(scores).map(function(slug){return {slug:slug,score:scores[slug]}})
+      .sort(function(a,b){return b.score-a.score||a.slug.localeCompare(b.slug)});
+    if(!ranked.length)return mon.name;
+
+    var direct=mon.name&&mon.name.match&&mon.name.match.slug;
+    var directVariants=direct?[direct]:[];
+    if(direct){
+      Object.keys(scores).forEach(function(slug){
+        if(slug===direct||slug.indexOf(direct+"-")===0)directVariants.push(slug);
+      });
+    }
+    var directBest=directVariants.map(function(slug){return {slug:slug,score:scores[slug]||0}})
+      .sort(function(a,b){return b.score-a.score})[0];
+
+    var top=ranked[0],second=ranked[1]||{score:0};
+    var evidenceMax=sources.reduce(function(total,source){return total+source.weight},0);
+    var topStrong=top.score>=Math.max(3,Math.ceil(evidenceMax*.58));
+    var clearlyAhead=top.score>=second.score+1;
+
+    if(directBest&&directBest.score>=Math.max(2,top.score-1)){
+      mon.name.match={
+        slug:directBest.slug,
+        label:championsEvidencePokemonName(directBest.slug),
+        score:1,
+        source:"ocr+evidence"
+      };
+      return mon.name;
+    }
+
+    if(topStrong&&clearlyAhead){
+      mon.name={
+        raw:mon.name&&mon.name.raw||"",
+        match:{slug:top.slug,label:championsEvidencePokemonName(top.slug),score:top.score/evidenceMax,source:"evidence"}
+      };
+    }else if(directBest&&directBest.score===0&&top.score>=4){
+      mon.name={raw:mon.name&&mon.name.raw||"",match:null};
+    }
+    return mon.name;
+  }
+
+  function championsRepairStatPoints(stats){
+    var known=0,missing=[];
+    statKeys.forEach(function(key){
+      var pair=stats[key]||{};
+      if(pair.sp==null||pair.sp<0||pair.sp>32){
+        pair.sp=null;missing.push(key);
+      }else known+=pair.sp;
+      stats[key]=pair;
+    });
+    if(missing.length===1){
+      var remainder=66-known;
+      if(remainder>=0&&remainder<=32)stats[missing[0]].sp=remainder;
+    }
+    return stats;
+  }
+
   function championsParseMovesCard(cardWords,resources){
     var name=championsExtractName(cardWords,resources.pokemon);
-    var left=cardWords.filter(function(word){return word.relX<.5&&word.relY>.25});
-    var right=cardWords.filter(function(word){return word.relX>=.5&&word.relY>.12});
-    var leftLines=championsGroupLines(left,.075).filter(function(line){return line.text});
-    var moveLines=championsGroupLines(right,.065).filter(function(line){return line.text}).slice(0,4);
-    var abilityLine=leftLines[0]&&leftLines[0].text||"";
-    var itemLine=leftLines[1]&&leftLines[1].text||"";
+    var left=cardWords.filter(function(word){return word.relX<.5&&word.relY>.22});
+    var right=cardWords.filter(function(word){return word.relX>=.5&&word.relY>.10});
+    var leftLines=championsGroupLines(left,.07).filter(function(line){return line.text});
+    var rightLines=championsGroupLines(right,.058).filter(function(line){return line.text});
+    var abilityBest=championsBestLineMatch(leftLines,resources.abilities,.67);
+    var itemBest=championsBestLineMatch(leftLines,resources.items,.67);
+
+    if(abilityBest&&itemBest&&abilityBest.line===itemBest.line){
+      if(abilityBest.match.score>=itemBest.match.score+.08)itemBest=null;
+      else if(itemBest.match.score>=abilityBest.match.score+.08)abilityBest=null;
+      else{
+        abilityBest=null;
+        itemBest=null;
+      }
+    }
+
     return {
       name:name,
-      ability:{raw:abilityLine,match:championsBestResourceMatch(abilityLine,resources.abilities,.62)},
-      item:{raw:itemLine,match:championsBestResourceMatch(itemLine,resources.items,.62)},
-      moves:moveLines.map(function(line){return {raw:line.text,match:championsBestResourceMatch(line.text,resources.moves,.58)}})
+      ability:{
+        raw:abilityBest?abilityBest.line.text:"",
+        match:abilityBest?abilityBest.match:null
+      },
+      item:{
+        raw:itemBest?itemBest.line.text:"",
+        match:itemBest?itemBest.match:null
+      },
+      moves:championsMoveMatches(rightLines,resources.moves)
     };
   }
 
   function championsStatPair(line){
     var values=String(line&&line.text||"").match(/\d+/g)||[];
     values=values.map(function(value){return Number(value)}).filter(function(value){return Number.isFinite(value)});
-    if(values.length>=2)return {value:values[values.length-2],sp:values[values.length-1],raw:line.text};
-    if(values.length===1)return {value:values[0],sp:null,raw:line.text};
-    return {value:null,sp:null,raw:line&&line.text||""};
+    var pair={value:null,sp:null,raw:line&&line.text||""};
+    if(values.length>=2){
+      pair.value=values[values.length-2];
+      pair.sp=values[values.length-1];
+    }else if(values.length===1){
+      pair.value=values[0];
+    }
+    if(pair.sp!=null&&(pair.sp<0||pair.sp>32))pair.sp=null;
+    if(pair.value!=null&&(pair.value<20||pair.value>999))pair.value=null;
+    return pair;
   }
 
   function championsParseStatsCard(cardWords,resources){
@@ -2790,6 +2941,7 @@
     var stats={};
     keysLeft.forEach(function(key,index){stats[key]=championsStatPair(leftLines[index])});
     keysRight.forEach(function(key,index){stats[key]=championsStatPair(rightLines[index])});
+    championsRepairStatPoints(stats);
     return {name:name,stats:stats};
   }
 
@@ -2804,7 +2956,7 @@
     var grid=$("#championsOcrGrid");
     grid.innerHTML=team.map(function(mon,index){
       var species=mon.name&&mon.name.match
-        ? '<strong>'+escapeHtml(mon.name.match.label)+'</strong>'
+        ? '<strong>'+escapeHtml(mon.name.match.label)+'</strong>'+(mon.name.match.source==="evidence"?'<small>Matched from ability & moves</small>':mon.name.match.source==="ocr+evidence"?'<small>OCR verified against team details</small>':'')
         : '<strong class="champions-ocr-unresolved">Species unresolved</strong>'+(mon.name&&mon.name.raw?'<small>Read: '+escapeHtml(mon.name.raw)+'</small>':'<small>Name could not be read confidently</small>');
       var moves=(mon.moves||[]).map(function(move,moveIndex){
         return '<span><b>'+(moveIndex+1)+'</b>'+championsOcrField(move)+'</span>';
@@ -2905,6 +3057,8 @@
         });
       }
 
+      championsSetOcrProgress("Cross-checking species…",.96);
+      await Promise.all(team.map(championsResolveSpeciesFromEvidence));
       championsRenderOcrResults(team);
       championsSetOcrProgress("OCR preview ready",1);
       status.textContent="First OCR pass complete. Review the six slots below — unresolved fields are being left blank rather than guessed.";
