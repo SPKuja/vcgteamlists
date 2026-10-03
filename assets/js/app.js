@@ -2672,13 +2672,13 @@
       if(!sdk||!sdk.PaddleOCR||typeof sdk.PaddleOCR.create!=="function"){
         throw new Error("PaddleOCR v2 could not be loaded.");
       }
-      championsSetOcrProgress("Loading OCR models…",.12);
+      championsSetOcrProgress("Loading OCR models on this device…",.12);
       // PP-OCRv6 small uses a unified multilingual recogniser. "japan" keeps
       // Japanese nicknames/species visible while still recognising the English UI.
       return sdk.PaddleOCR.create({
         lang:"japan",
         ocrVersion:"PP-OCRv6",
-        worker:true,
+        worker:false,
         textDetectionBatchSize:2,
         textRecognitionBatchSize:12,
         ortOptions:{
