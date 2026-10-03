@@ -19,6 +19,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build browser OCR bundle
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:ocr
+          test -f assets/vendor/paddleocr/paddleocr.js
+
       - name: Validate site
         run: |
           test -f index.html
@@ -108,6 +119,10 @@ jobs:
           rsync -az --delete \
             --exclude='.git/' \
             --exclude='.github/' \
+            --exclude='node_modules/' \
+            --exclude='package.json' \
+            --exclude='package-lock.json' \
+            --exclude='vite.ocr.config.mjs' \
             --exclude='README.md' \
             --exclude='.well-known/' \
             --exclude='images/' \
