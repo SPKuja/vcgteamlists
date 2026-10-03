@@ -2664,39 +2664,53 @@
     var image=slot.image;
     var naturalWidth=image.naturalWidth||image.width;
     var naturalHeight=image.naturalHeight||image.height;
-    var targetWidth=Math.max(1600,Math.min(2200,naturalWidth));
-    var scale=targetWidth/naturalWidth;
+    var cardWidth=1000,cardHeight=260,gap=28,margin=24;
     var canvas=document.createElement("canvas");
-    canvas.width=Math.round(naturalWidth*scale);
-    canvas.height=Math.round(naturalHeight*scale);
+    canvas.width=margin*2+cardWidth*2+gap;
+    canvas.height=margin*2+cardHeight*3+gap*2;
     var ctx=canvas.getContext("2d",{willReadFrequently:true});
     ctx.fillStyle="#fff";
     ctx.fillRect(0,0,canvas.width,canvas.height);
+    var cards=[];
 
-    slot.detection.cards.forEach(function(box){
-      var sx=Math.max(0,Math.floor(box.x*naturalWidth));
-      var sy=Math.max(0,Math.floor(box.y*naturalHeight));
-      var sw=Math.min(naturalWidth-sx,Math.ceil(box.width*naturalWidth));
-      var sh=Math.min(naturalHeight-sy,Math.ceil(box.height*naturalHeight));
-      var dx=Math.floor(box.x*canvas.width);
-      var dy=Math.floor(box.y*canvas.height);
-      var dw=Math.ceil(box.width*canvas.width);
-      var dh=Math.ceil(box.height*canvas.height);
-      ctx.drawImage(image,sx,sy,sw,sh,dx,dy,dw,dh);
+    slot.detection.cards.forEach(function(box,index){
+      var sourceX=box.x*naturalWidth;
+      var sourceY=box.y*naturalHeight;
+      var sourceWidth=box.width*naturalWidth;
+      var sourceHeight=box.height*naturalHeight;
+      var padX=sourceWidth*.018,padY=sourceHeight*.075;
+      var sx=Math.max(0,Math.floor(sourceX-padX));
+      var sy=Math.max(0,Math.floor(sourceY-padY));
+      var sr=Math.min(naturalWidth,Math.ceil(sourceX+sourceWidth+padX));
+      var sb=Math.min(naturalHeight,Math.ceil(sourceY+sourceHeight+padY));
+      var sw=Math.max(1,sr-sx),sh=Math.max(1,sb-sy);
 
-      var imageData=ctx.getImageData(dx,dy,dw,dh);
+      var col=index%2,row=Math.floor(index/2);
+      var dx=margin+col*(cardWidth+gap);
+      var dy=margin+row*(cardHeight+gap);
+      ctx.drawImage(image,sx,sy,sw,sh,dx,dy,cardWidth,cardHeight);
+
+      var imageData=ctx.getImageData(dx,dy,cardWidth,cardHeight);
       var data=imageData.data;
       for(var p=0;p<data.length;p+=4){
         var r=data[p],g=data[p+1],b=data[p+2];
         var luminance=.299*r+.587*g+.114*b;
         var spread=Math.max(r,g,b)-Math.min(r,g,b);
-        var isText=luminance>158||(luminance>140&&spread<42);
+        var isText=luminance>148||(luminance>132&&spread<50);
         var v=isText?0:255;
         data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
       }
-      ctx.putImageData(imageData,dx,dy);
+      ctx.putImageData(imageData,dx,dy,cardWidth,cardHeight);
+
+      cards.push({
+        x:dx/canvas.width,
+        y:dy/canvas.height,
+        width:cardWidth/canvas.width,
+        height:cardHeight/canvas.height
+      });
     });
-    return canvas;
+
+    return {canvas:canvas,detection:{cards:cards}};
   }
 
   function championsParseTsv(tsv){
@@ -2800,15 +2814,21 @@
     try{
       var endpoint=kind==="ability"
         ? API+"/ability/"+encodeURIComponent(slug)
-        : API+"/move/"+encodeURIComponent(slug);
+        : kind==="item"
+          ? API+"/item/"+encodeURIComponent(slug)
+          : API+"/move/"+encodeURIComponent(slug);
       var res=await fetch(endpoint);
       if(!res.ok)return [];
       var data=await res.json();
-      var entries=kind==="ability"?(data.pokemon||[]):(data.learned_by_pokemon||[]);
+      var entries=kind==="ability"
+        ? (data.pokemon||[])
+        : kind==="item"
+          ? (data.held_by_pokemon||[])
+          : (data.learned_by_pokemon||[]);
       return entries.map(function(entry){
-        return kind==="ability"
-          ? entry.pokemon&&entry.pokemon.name
-          : entry&&entry.name;
+        if(kind==="ability")return entry.pokemon&&entry.pokemon.name;
+        if(kind==="item")return entry.pokemon&&entry.pokemon.name;
+        return entry&&entry.name;
       }).filter(Boolean);
     }catch(e){return []}
   }
@@ -2816,6 +2836,7 @@
   async function championsResolveSpeciesFromEvidence(mon){
     var sources=[];
     if(mon.ability&&mon.ability.match)sources.push({kind:"ability",slug:mon.ability.match.slug,weight:3});
+    if(mon.item&&mon.item.match)sources.push({kind:"item",slug:mon.item.match.slug,weight:5});
     (mon.moves||[]).forEach(function(move){
       if(move&&move.match)sources.push({kind:"move",slug:move.match.slug,weight:1});
     });
@@ -2986,11 +3007,15 @@
   }
 
   async function championsRecogniseSlot(worker,slot,label,offset,span){
-    var canvas=championsBuildOcrCanvas(slot);
+    var prepared=championsBuildOcrCanvas(slot);
     championsSetOcrProgress(label,offset);
-    var result=await worker.recognize(canvas,{tessedit_pageseg_mode:"11"},{tsv:true,text:true});
+    var result=await worker.recognize(prepared.canvas,{tessedit_pageseg_mode:"11"},{tsv:true,text:true});
     championsSetOcrProgress(label,offset+span);
-    return {words:championsParseTsv(result.data&&result.data.tsv),canvas:canvas};
+    return {
+      words:championsParseTsv(result.data&&result.data.tsv),
+      canvas:prepared.canvas,
+      detection:prepared.detection
+    };
   }
 
   async function readChampionsTeam(){
@@ -3037,10 +3062,10 @@
       var statsRead=await championsRecogniseSlot(worker,statsSlot,"Reading Stats…",.51,.39);
 
       championsSetOcrProgress("Matching recognised text…",.93);
-      var movesCards=championsWordsByCard(movesRead.words,movesSlot.detection,movesRead.canvas).map(function(words){
+      var movesCards=championsWordsByCard(movesRead.words,movesRead.detection,movesRead.canvas).map(function(words){
         return championsParseMovesCard(words,resources);
       });
-      var statsCards=championsWordsByCard(statsRead.words,statsSlot.detection,statsRead.canvas).map(function(words){
+      var statsCards=championsWordsByCard(statsRead.words,statsRead.detection,statsRead.canvas).map(function(words){
         return championsParseStatsCard(words,resources);
       });
 
