@@ -8,9 +8,9 @@
   <title>VGC Team Lists</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.12">
+  <link rel="stylesheet" href="/assets/css/app.css?v=1.0.13">
   <script defer src="/assets/js/qrcodegen.min.js?v=1.8.0"></script>
-  <script defer src="/assets/js/app.js?v=1.0.6"></script>
+  <script defer src="/assets/js/app.js?v=1.0.7"></script>
   <script defer src="/assets/js/auth.js?v=0.7.1"></script>
   <script defer src="/assets/js/tcg.js?v=0.4.0"></script>
 </head>
@@ -251,6 +251,7 @@
         <div class="section-heading compact team-heading">
           <div><span class="eyebrow" id="teamSlotEyebrow">Six slots</span><h2>Battle team</h2></div>
           <div class="team-heading-actions">
+            <button class="button secondary champions-import-button" id="openChampionsImport" type="button" hidden>Import screenshots <span class="experimental-badge">Beta</span></button>
             <button class="button secondary showdown-import-button" id="openShowdownImport" type="button">Import Showdown</button>
             <span class="completion" id="completionCount">0 / 6 complete</span>
           </div>
@@ -759,6 +760,74 @@
         <button class="button primary" id="saveTeamSubmit" type="submit">Save Team</button>
       </div>
       <div class="account-message" id="saveTeamMessage" role="status" aria-live="polite"></div>
+    </form>
+  </dialog>
+
+
+  <dialog class="champions-import-dialog" id="championsImportDialog" aria-labelledby="championsImportDialogTitle">
+    <form class="champions-import-modal" id="championsImportForm">
+      <header class="champions-import-head">
+        <div>
+          <span class="eyebrow">Champions screenshot import</span>
+          <h2 id="championsImportDialogTitle">Add your two team screenshots</h2>
+        </div>
+        <button class="icon-button" id="closeChampionsImport" type="button" aria-label="Close Champions screenshot importer">×</button>
+      </header>
+
+      <p class="champions-import-intro">Add the <strong>Moves &amp; More</strong> and <strong>Stats</strong> screens from Pokémon Champions. Either order is fine. This first beta pass checks the screenshot layout and finds all six team panels across different screen sizes.</p>
+
+      <div class="champions-upload-grid">
+        <label class="champions-upload-card" data-champions-drop="0" for="championsScreenshot0">
+          <input class="champions-file-input" id="championsScreenshot0" type="file" accept="image/*" hidden>
+          <span class="champions-upload-label">Screenshot 1</span>
+          <div class="champions-upload-empty" id="championsEmpty0">
+            <span class="champions-upload-icon" aria-hidden="true">↑</span>
+            <strong>Choose or drop screenshot</strong>
+            <small>Moves &amp; More or Stats</small>
+          </div>
+          <div class="champions-preview" id="championsPreview0" hidden>
+            <div class="champions-preview-frame">
+              <img id="championsPreviewImage0" alt="First Champions screenshot preview">
+              <div class="champions-detection-layer" id="championsDetection0" aria-hidden="true"></div>
+            </div>
+            <div class="champions-file-meta">
+              <strong id="championsKind0">Checking…</strong>
+              <span id="championsMeta0"></span>
+            </div>
+          </div>
+        </label>
+
+        <label class="champions-upload-card" data-champions-drop="1" for="championsScreenshot1">
+          <input class="champions-file-input" id="championsScreenshot1" type="file" accept="image/*" hidden>
+          <span class="champions-upload-label">Screenshot 2</span>
+          <div class="champions-upload-empty" id="championsEmpty1">
+            <span class="champions-upload-icon" aria-hidden="true">↑</span>
+            <strong>Choose or drop screenshot</strong>
+            <small>Moves &amp; More or Stats</small>
+          </div>
+          <div class="champions-preview" id="championsPreview1" hidden>
+            <div class="champions-preview-frame">
+              <img id="championsPreviewImage1" alt="Second Champions screenshot preview">
+              <div class="champions-detection-layer" id="championsDetection1" aria-hidden="true"></div>
+            </div>
+            <div class="champions-file-meta">
+              <strong id="championsKind1">Checking…</strong>
+              <span id="championsMeta1"></span>
+            </div>
+          </div>
+        </label>
+      </div>
+
+      <div class="champions-layout-key">
+        <span><i class="champions-key-box" aria-hidden="true"></i>Detected team panels</span>
+        <span>Processed locally in your browser — screenshots are not uploaded.</span>
+      </div>
+
+      <div class="champions-import-status" id="championsImportStatus" role="status" aria-live="polite"></div>
+      <div class="champions-import-actions">
+        <button class="button secondary" id="cancelChampionsImport" type="button">Cancel</button>
+        <button class="button primary" id="checkChampionsScreenshots" type="submit" disabled>Check screenshots</button>
+      </div>
     </form>
   </dialog>
 
