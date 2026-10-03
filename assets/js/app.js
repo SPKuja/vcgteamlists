@@ -2662,7 +2662,18 @@
   }
 
   var CHAMPIONS_PADDLE_OCR_MODULE="/assets/vendor/paddleocr/paddleocr.js?v=0.3.1";
-  var CHAMPIONS_ORT_WASM="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/";
+  var CHAMPIONS_ORT_WASM="/assets/vendor/paddleocr/ort/";
+  var CHAMPIONS_PADDLE_DET_MODEL="/assets/vendor/paddleocr/models/PP-OCRv6_tiny_det_onnx_infer.tar";
+  var CHAMPIONS_PADDLE_REC_MODEL="/assets/vendor/paddleocr/models/PP-OCRv6_tiny_rec_onnx_infer.tar";
+
+  function championsTimeout(promise,ms,message){
+    return Promise.race([
+      promise,
+      new Promise(function(_,reject){
+        setTimeout(function(){reject(new Error(message||"OCR loading timed out."))},ms);
+      })
+    ]);
+  }
 
   async function championsEnsurePaddleOcr(){
     if(championsPaddleOcrPromise)return championsPaddleOcrPromise;
@@ -2675,9 +2686,11 @@
       championsSetOcrProgress("Loading OCR models on this device…",.12);
       // PP-OCRv6 small uses a unified multilingual recogniser. "japan" keeps
       // Japanese nicknames/species visible while still recognising the English UI.
-      return sdk.PaddleOCR.create({
-        lang:"japan",
-        ocrVersion:"PP-OCRv6",
+      return championsTimeout(sdk.PaddleOCR.create({
+        textDetectionModelName:"PP-OCRv6_tiny_det",
+        textDetectionModelAsset:{url:CHAMPIONS_PADDLE_DET_MODEL},
+        textRecognitionModelName:"PP-OCRv6_tiny_rec",
+        textRecognitionModelAsset:{url:CHAMPIONS_PADDLE_REC_MODEL},
         worker:false,
         textDetectionBatchSize:2,
         textRecognitionBatchSize:12,
@@ -2687,7 +2700,7 @@
           numThreads:1,
           simd:true
         }
-      });
+      }),120000,"The OCR models took too long to initialise. Please retry once the page has a stable connection.");
     })().catch(function(error){
       championsPaddleOcrPromise=null;
       throw error;
@@ -3101,7 +3114,7 @@
     button.disabled=true;
     button.textContent="Reading team…";
     $("#championsOcrResults").hidden=true;
-    status.textContent="Starting PaddleOCR v2. The first run downloads the OCR models to your browser.";
+    status.textContent="Starting PaddleOCR v2. The first run loads the compact OCR models from this site.";
     status.classList.remove("is-error","is-success");
 
     var resourcesPromise=Promise.all([
