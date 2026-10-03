@@ -1,4 +1,4 @@
-const CACHE="vcg-teamlists-shell-v90";
+const CACHE="vcg-teamlists-shell-v91";
 const SHELL=["/","/index.html","/assets/css/app.css","/assets/js/qrcodegen.min.js","/assets/js/app.js","/assets/js/auth.js","/assets/js/tcg.js","/assets/icon.svg","/manifest.webmanifest"];
 self.addEventListener("install",event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()))});
 self.addEventListener("activate",event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()))});
