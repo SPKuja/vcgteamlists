@@ -2888,6 +2888,189 @@
     return {name:name,stats:stats};
   }
 
+  function championsBuildStatNumberCrops(slot){
+    var image=slot.image;
+    var naturalWidth=image.naturalWidth||image.width;
+    var naturalHeight=image.naturalHeight||image.height;
+    var rows=[[.255,.485],[.485,.715],[.715,.965]];
+    var fields=[
+      {key:"hp",row:0,side:"left"},
+      {key:"attack",row:1,side:"left"},
+      {key:"defense",row:2,side:"left"},
+      {key:"specialAttack",row:0,side:"right"},
+      {key:"specialDefense",row:1,side:"right"},
+      {key:"speed",row:2,side:"right"}
+    ];
+    var crops=[];
+
+    function makeCrop(box,field,kind){
+      var isRight=field.side==="right";
+      var xRange;
+      if(kind==="value"){
+        xRange=isRight?[.745,.865]:[.295,.405];
+      }else{
+        xRange=isRight?[.925,.995]:[.435,.505];
+      }
+      var yRange=rows[field.row];
+      var sx=(box.x+box.width*xRange[0])*naturalWidth;
+      var sy=(box.y+box.height*yRange[0])*naturalHeight;
+      var sw=box.width*(xRange[1]-xRange[0])*naturalWidth;
+      var sh=box.height*(yRange[1]-yRange[0])*naturalHeight;
+
+      var canvas=document.createElement("canvas");
+      canvas.width=kind==="value"?260:190;
+      canvas.height=110;
+      var ctx=canvas.getContext("2d",{willReadFrequently:true});
+      ctx.fillStyle="#fff";
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.imageSmoothingEnabled=true;
+      ctx.imageSmoothingQuality="high";
+      ctx.drawImage(image,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+
+      // Champions uses pale text on a purple panel. Flatten the crop into
+      // high-contrast black digits on white so OCR never has to interpret
+      // stat labels, arrows, bars or neighbouring values.
+      var imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+      var data=imageData.data;
+      for(var p=0;p<data.length;p+=4){
+        var r=data[p],g=data[p+1],b=data[p+2];
+        var lum=.299*r+.587*g+.114*b;
+        var spread=Math.max(r,g,b)-Math.min(r,g,b);
+        var isDigitInk=lum>150||(lum>137&&spread<45);
+        var value=isDigitInk?0:255;
+        data[p]=value;data[p+1]=value;data[p+2]=value;data[p+3]=255;
+      }
+      ctx.putImageData(imageData,0,0);
+      return canvas;
+    }
+
+    slot.detection.cards.forEach(function(box,cardIndex){
+      fields.forEach(function(field){
+        ["value","sp"].forEach(function(kind){
+          crops.push({
+            cardIndex:cardIndex,
+            key:field.key,
+            kind:kind,
+            canvas:makeCrop(box,field,kind)
+          });
+        });
+      });
+    });
+    return crops;
+  }
+
+  function championsNumericOcrValue(result,kind){
+    var candidates=[];
+    ((result&&result.items)||[]).forEach(function(item){
+      var score=Number(item.score)||0;
+      var groups=String(item.text||"").match(/\d+/g)||[];
+      groups.forEach(function(group){
+        var value=Number(group);
+        if(!Number.isFinite(value))return;
+        var valid=kind==="sp"
+          ? value>=0&&value<=32
+          : value>=20&&value<=999;
+        if(valid)candidates.push({value:value,score:score,raw:String(item.text||"")});
+      });
+    });
+    if(!candidates.length)return {value:null,confidence:0,raw:""};
+    candidates.sort(function(a,b){
+      if(b.score!==a.score)return b.score-a.score;
+      if(kind==="value")return String(b.value).length-String(a.value).length;
+      return 0;
+    });
+    return {value:candidates[0].value,confidence:candidates[0].score,raw:candidates[0].raw};
+  }
+
+  async function championsReadStatNumbers(ocr,statsSlot){
+    var crops=championsBuildStatNumberCrops(statsSlot);
+    var stats=Array.from({length:6},function(){
+      var object={};
+      statKeys.forEach(function(key){
+        object[key]={value:null,sp:null,valueConfidence:0,spConfidence:0,raw:""};
+      });
+      return object;
+    });
+
+    var batchSize=18;
+    for(var start=0;start<crops.length;start+=batchSize){
+      var batch=crops.slice(start,start+batchSize);
+      var progress=.58+(.24*(start/crops.length));
+      championsSetOcrProgress("Reading individual stat numbers…",progress);
+      var results=await ocr.predict(batch.map(function(entry){return entry.canvas}),{
+        textDetLimitSideLen:320,
+        textDetLimitType:"max",
+        textDetThresh:.08,
+        textDetBoxThresh:.12,
+        textDetUnclipRatio:1.25,
+        textRecScoreThresh:.08
+      });
+      if(!Array.isArray(results)||results.length!==batch.length){
+        throw new Error("The stat-number OCR pass returned incomplete data.");
+      }
+
+      results.forEach(function(result,index){
+        var entry=batch[index];
+        var parsed=championsNumericOcrValue(result,entry.kind);
+        var target=stats[entry.cardIndex][entry.key];
+        if(entry.kind==="value"){
+          target.value=parsed.value;
+          target.valueConfidence=parsed.confidence;
+        }else{
+          target.sp=parsed.value;
+          target.spConfidence=parsed.confidence;
+        }
+        if(parsed.raw)target.raw+=(target.raw?" / ":"")+parsed.raw;
+      });
+    }
+
+    stats.forEach(function(cardStats){
+      championsValidateStatPointTotal(cardStats);
+    });
+    return stats;
+  }
+
+  function championsValidateStatPointTotal(stats){
+    var entries=statKeys.map(function(key){
+      var pair=stats[key]||{};
+      return {key:key,value:pair.sp,confidence:Number(pair.spConfidence)||0};
+    });
+    var known=entries.filter(function(entry){return entry.value!=null});
+    var missing=entries.filter(function(entry){return entry.value==null});
+    var total=known.reduce(function(sum,entry){return sum+entry.value},0);
+
+    if(total===66){
+      missing.forEach(function(entry){stats[entry.key].sp=0});
+      return stats;
+    }
+
+    if(missing.length===1){
+      var remainder=66-total;
+      if(remainder>=0&&remainder<=32){
+        stats[missing[0].key].sp=remainder;
+        stats[missing[0].key].spInferred=true;
+        return stats;
+      }
+    }
+
+    // A complete set that does not total 66 is internally inconsistent. Do not
+    // confidently show all six values as if they were valid: drop the weakest
+    // OCR read only when doing so leaves one unambiguous legal remainder.
+    if(missing.length===0&&total!==66){
+      var weakest=entries.slice().sort(function(a,b){return a.confidence-b.confidence})[0];
+      var without=total-weakest.value;
+      var replacement=66-without;
+      if(replacement>=0&&replacement<=32&&replacement!==weakest.value){
+        stats[weakest.key].sp=replacement;
+        stats[weakest.key].spInferred=true;
+      }else{
+        stats[weakest.key].sp=null;
+      }
+    }
+
+    return stats;
+  }
+
   function championsEvidencePokemonName(slug){
     var value=String(slug||"");
     var regional=value.match(/^(.+)-(alola|galar|hisui|paldea)$/);
@@ -3135,17 +3318,13 @@
       };
       var ocr=await ocrPromise;
 
-      championsSetOcrProgress("Preparing the 12 team panels…",.30);
+      championsSetOcrProgress("Preparing the six Moves & More panels…",.30);
       var movesCanvases=movesSlot.detection.cards.map(function(box){
         return championsBuildPaddleCardCanvas(movesSlot,box);
       });
-      var statsCanvases=statsSlot.detection.cards.map(function(box){
-        return championsBuildPaddleCardCanvas(statsSlot,box);
-      });
-      var inputs=movesCanvases.concat(statsCanvases);
 
-      championsSetOcrProgress("Reading team panels with PaddleOCR…",.42);
-      var results=await ocr.predict(inputs,{
+      championsSetOcrProgress("Reading Pokémon, abilities, items and moves…",.40);
+      var results=await ocr.predict(movesCanvases,{
         textDetLimitSideLen:1536,
         textDetLimitType:"max",
         textDetThresh:.18,
@@ -3153,16 +3332,21 @@
         textDetUnclipRatio:1.45,
         textRecScoreThresh:.18
       });
-      if(!Array.isArray(results)||results.length!==12){
+      if(!Array.isArray(results)||results.length!==6){
         throw new Error("PaddleOCR returned an incomplete team read. Please try again.");
       }
 
-      championsSetOcrProgress("Matching Pokémon data…",.80);
-      var movesCards=results.slice(0,6).map(function(result,index){
+      championsSetOcrProgress("Matching Pokémon data…",.54);
+      var movesCards=results.map(function(result,index){
         return championsParsePaddleMovesCard(championsPaddleItems(result,movesCanvases[index]),resources);
       });
-      var statsCards=results.slice(6,12).map(function(result,index){
-        return championsParsePaddleStatsCard(championsPaddleItems(result,statsCanvases[index]),resources);
+
+      // Stats are deliberately not OCR'd as rows anymore. Champions fixes every
+      // final-stat number and every Stat Point number to a known position, so
+      // read those 72 tiny number boxes independently.
+      var numericStats=await championsReadStatNumbers(ocr,statsSlot);
+      var statsCards=numericStats.map(function(stats){
+        return {name:{raw:"",match:null},stats:stats};
       });
 
       var team=[];
@@ -3181,10 +3365,10 @@
         });
       }
 
-      championsSetOcrProgress("Cross-checking team details…",.90);
+      championsSetOcrProgress("Cross-checking team details…",.86);
       await Promise.all(team.map(championsResolveSpeciesFromEvidence));
       await Promise.all(team.map(championsValidateMovesForSpecies));
-      team.forEach(function(mon){championsRepairStatPoints(mon.stats||{})});
+      team.forEach(function(mon){championsValidateStatPointTotal(mon.stats||{})});
 
       championsRenderOcrResults(team);
       championsSetOcrProgress("PaddleOCR v2 preview ready",1);
