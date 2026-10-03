@@ -2732,7 +2732,7 @@
     [0,1].forEach(function(index){
       $("#championsScreenshot"+index).addEventListener("change",function(){handleChampionsScreenshot(index,this.files&&this.files[0])});
     });
-    $("[data-champions-drop]").forEach(function(card){
+    $$("[data-champions-drop]").forEach(function(card){
       ["dragenter","dragover"].forEach(function(name){card.addEventListener(name,function(e){e.preventDefault();card.classList.add("is-dragover")})});
       ["dragleave","drop"].forEach(function(name){card.addEventListener(name,function(e){e.preventDefault();card.classList.remove("is-dragover")})});
       card.addEventListener("drop",function(e){
