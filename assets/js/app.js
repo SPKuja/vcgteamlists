@@ -2661,7 +2661,7 @@
     return bestScore>=(minScore||.62)?{slug:best,label:prettyName(best),score:bestScore}:null;
   }
 
-  var CHAMPIONS_PADDLE_OCR_MODULE="https://esm.sh/@paddleocr/paddleocr-js@0.4.2?bundle&target=es2020";
+  var CHAMPIONS_PADDLE_OCR_MODULE="/assets/vendor/paddleocr/paddleocr.js?v=0.3.1";
   var CHAMPIONS_ORT_WASM="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/";
 
   async function championsEnsurePaddleOcr(){
@@ -2678,7 +2678,7 @@
       return sdk.PaddleOCR.create({
         lang:"japan",
         ocrVersion:"PP-OCRv6",
-        worker:false,
+        worker:true,
         textDetectionBatchSize:2,
         textRecognitionBatchSize:12,
         ortOptions:{
