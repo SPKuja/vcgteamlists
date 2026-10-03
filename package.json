@@ -1,0 +1,14 @@
+{
+  "name": "vcg-teamlists-build",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:ocr": "vite build --config vite.ocr.config.mjs"
+  },
+  "dependencies": {
+    "@paddleocr/paddleocr-js": "0.4.2"
+  },
+  "devDependencies": {
+    "vite": "6.4.1"
+  }
+}
