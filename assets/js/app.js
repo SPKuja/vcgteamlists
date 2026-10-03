@@ -2947,7 +2947,9 @@
       }else known+=pair.sp;
       stats[key]=pair;
     });
-    if(missing.length===1){
+    if(known===66){
+      missing.forEach(function(key){stats[key].sp=0});
+    }else if(missing.length===1){
       var remainder=66-known;
       if(remainder>=0&&remainder<=32)stats[missing[0]].sp=remainder;
     }
@@ -2957,7 +2959,7 @@
   function championsParseMovesCard(cardWords,resources){
     var name=championsExtractName(cardWords,resources.pokemon);
     var left=cardWords.filter(function(word){return word.relX<.5&&word.relY>.22});
-    var right=cardWords.filter(function(word){return word.relX>=.5&&word.relY>.10});
+    var right=cardWords.filter(function(word){return word.relX>=.5&&word.relY>.025});
     var leftLines=championsGroupLines(left,.07).filter(function(line){return line.text});
     var rightLines=championsGroupLines(right,.058).filter(function(line){return line.text});
     var abilityBest=championsBestLineMatch(leftLines,resources.abilities,.67);
