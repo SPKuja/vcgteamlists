@@ -43,6 +43,7 @@
   var editorScrollLockY=0;
   var championsImportSlots=[null,null];
   var championsOcrRunning=false;
+  var championsPaddleOcrPromise=null;
 
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
@@ -2660,128 +2661,218 @@
     return bestScore>=(minScore||.62)?{slug:best,label:prettyName(best),score:bestScore}:null;
   }
 
-  function championsBuildOcrCanvas(slot){
+  var CHAMPIONS_PADDLE_OCR_MODULE="https://esm.sh/@paddleocr/paddleocr-js@0.4.2?bundle&target=es2020";
+  var CHAMPIONS_ORT_WASM="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/";
+
+  async function championsEnsurePaddleOcr(){
+    if(championsPaddleOcrPromise)return championsPaddleOcrPromise;
+    championsPaddleOcrPromise=(async function(){
+      championsSetOcrProgress("Loading PaddleOCR v2…",.06);
+      var sdk=await import(CHAMPIONS_PADDLE_OCR_MODULE);
+      if(!sdk||!sdk.PaddleOCR||typeof sdk.PaddleOCR.create!=="function"){
+        throw new Error("PaddleOCR v2 could not be loaded.");
+      }
+      championsSetOcrProgress("Loading OCR models…",.12);
+      // PP-OCRv6 small uses a unified multilingual recogniser. "japan" keeps
+      // Japanese nicknames/species visible while still recognising the English UI.
+      return sdk.PaddleOCR.create({
+        lang:"japan",
+        ocrVersion:"PP-OCRv6",
+        worker:false,
+        textDetectionBatchSize:2,
+        textRecognitionBatchSize:12,
+        ortOptions:{
+          backend:"wasm",
+          wasmPaths:CHAMPIONS_ORT_WASM,
+          numThreads:1,
+          simd:true
+        }
+      });
+    })().catch(function(error){
+      championsPaddleOcrPromise=null;
+      throw error;
+    });
+    return championsPaddleOcrPromise;
+  }
+
+  function championsBuildPaddleCardCanvas(slot,box){
     var image=slot.image;
     var naturalWidth=image.naturalWidth||image.width;
     var naturalHeight=image.naturalHeight||image.height;
-    var targetWidth=Math.max(1800,Math.min(2600,naturalWidth));
-    var scale=targetWidth/naturalWidth;
+    var sourceX=box.x*naturalWidth;
+    var sourceY=box.y*naturalHeight;
+    var sourceWidth=box.width*naturalWidth;
+    var sourceHeight=box.height*naturalHeight;
+    var padX=sourceWidth*.012,padY=sourceHeight*.035;
+    var sx=Math.max(0,Math.floor(sourceX-padX));
+    var sy=Math.max(0,Math.floor(sourceY-padY));
+    var sr=Math.min(naturalWidth,Math.ceil(sourceX+sourceWidth+padX));
+    var sb=Math.min(naturalHeight,Math.ceil(sourceY+sourceHeight+padY));
+    var sw=Math.max(1,sr-sx),sh=Math.max(1,sb-sy);
+    var targetWidth=1400;
+    var scale=targetWidth/sw;
     var canvas=document.createElement("canvas");
-    canvas.width=Math.round(naturalWidth*scale);
-    canvas.height=Math.round(naturalHeight*scale);
-    var ctx=canvas.getContext("2d",{willReadFrequently:true});
+    canvas.width=targetWidth;
+    canvas.height=Math.max(180,Math.round(sh*scale));
+    var ctx=canvas.getContext("2d",{willReadFrequently:false});
     ctx.fillStyle="#fff";
     ctx.fillRect(0,0,canvas.width,canvas.height);
-
-    slot.detection.cards.forEach(function(box){
-      var sx=Math.max(0,Math.floor(box.x*naturalWidth));
-      var sy=Math.max(0,Math.floor(box.y*naturalHeight));
-      var sw=Math.min(naturalWidth-sx,Math.ceil(box.width*naturalWidth));
-      var sh=Math.min(naturalHeight-sy,Math.ceil(box.height*naturalHeight));
-      var dx=Math.floor(box.x*canvas.width);
-      var dy=Math.floor(box.y*canvas.height);
-      var dw=Math.ceil(box.width*canvas.width);
-      var dh=Math.ceil(box.height*canvas.height);
-      ctx.drawImage(image,sx,sy,sw,sh,dx,dy,dw,dh);
-
-      var imageData=ctx.getImageData(dx,dy,dw,dh);
-      var data=imageData.data;
-      for(var p=0;p<data.length;p+=4){
-        var r=data[p],g=data[p+1],b=data[p+2];
-        var luminance=.299*r+.587*g+.114*b;
-        var spread=Math.max(r,g,b)-Math.min(r,g,b);
-        var isText=luminance>158||(luminance>140&&spread<42);
-        var v=isText?0:255;
-        data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
-      }
-      ctx.putImageData(imageData,dx,dy);
-    });
-
-    return {canvas:canvas,detection:slot.detection};
+    ctx.imageSmoothingEnabled=true;
+    ctx.imageSmoothingQuality="high";
+    ctx.drawImage(image,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+    return canvas;
   }
 
-  function championsParseTsv(tsv){
-    var words=[];
-    String(tsv||"").split(/\r?\n/).slice(1).forEach(function(line){
-      if(!line)return;
-      var cols=line.split("\t");
-      if(cols.length<12||cols[0]!=="5")return;
-      var text=cols.slice(11).join("\t").trim();
-      var confidence=Number(cols[10]);
-      if(!text||confidence<18)return;
-      var left=Number(cols[6]),top=Number(cols[7]),width=Number(cols[8]),height=Number(cols[9]);
-      words.push({text:text,confidence:confidence,x:left,y:top,width:width,height:height,cx:left+width/2,cy:top+height/2});
-    });
-    return words;
+  function championsPaddlePolyPoints(poly){
+    if(!Array.isArray(poly))return [];
+    if(poly.length&&Array.isArray(poly[0])){
+      return poly.map(function(point){return {x:Number(point[0])||0,y:Number(point[1])||0}});
+    }
+    var points=[];
+    for(var i=0;i+1<poly.length;i+=2){
+      points.push({x:Number(poly[i])||0,y:Number(poly[i+1])||0});
+    }
+    return points;
   }
 
-  function championsWordsByCard(words,detection,canvas){
-    return detection.cards.map(function(box){
-      var x=box.x*canvas.width,y=box.y*canvas.height,w=box.width*canvas.width,h=box.height*canvas.height;
-      return words.filter(function(word){
-        return word.cx>=x&&word.cx<=x+w&&word.cy>=y&&word.cy<=y+h;
-      }).map(function(word){
-        return Object.assign({},word,{
-          relX:(word.cx-x)/w,
-          relY:(word.cy-y)/h,
-          relW:word.width/w,
-          relH:word.height/h
-        });
-      });
-    });
+  function championsPaddleItems(result,canvas){
+    return ((result&&result.items)||[]).map(function(item){
+      var points=championsPaddlePolyPoints(item.poly);
+      if(!points.length)return null;
+      var xs=points.map(function(point){return point.x});
+      var ys=points.map(function(point){return point.y});
+      var minX=Math.min.apply(Math,xs),maxX=Math.max.apply(Math,xs);
+      var minY=Math.min.apply(Math,ys),maxY=Math.max.apply(Math,ys);
+      return {
+        text:String(item.text||"").trim(),
+        confidence:Number(item.score)||0,
+        relX:((minX+maxX)/2)/canvas.width,
+        relY:((minY+maxY)/2)/canvas.height,
+        relW:(maxX-minX)/canvas.width,
+        relH:(maxY-minY)/canvas.height
+      };
+    }).filter(function(item){return item&&item.text&&item.confidence>=.18});
   }
 
-  function championsGroupLines(words,tolerance){
-    var sorted=(words||[]).slice().sort(function(a,b){return a.relY-b.relY||a.relX-b.relX});
-    var lines=[];
-    sorted.forEach(function(word){
-      var line=null;
-      for(var i=0;i<lines.length;i++){
-        if(Math.abs(lines[i].y-word.relY)<(tolerance||.075)){line=lines[i];break}
-      }
-      if(!line){line={y:word.relY,words:[]};lines.push(line)}
-      line.words.push(word);
-      line.y=line.words.reduce(function(total,item){return total+item.relY},0)/line.words.length;
-    });
-    lines.sort(function(a,b){return a.y-b.y});
-    lines.forEach(function(line){
-      line.words.sort(function(a,b){return a.relX-b.relX});
-      line.text=line.words.map(function(word){return word.text}).join(" ").replace(/\s+/g," ").trim();
-    });
-    return lines;
+  function championsTextFromItems(items){
+    return (items||[]).slice().sort(function(a,b){
+      if(Math.abs(a.relY-b.relY)>.045)return a.relY-b.relY;
+      return a.relX-b.relX;
+    }).map(function(item){return item.text}).join(" ").replace(/\s+/g," ").trim();
   }
 
-  function championsExtractName(cardWords,pokemon){
-    var top=cardWords.filter(function(word){return word.relY<.26&&word.relX>.07&&word.relX<.48});
-    var lines=championsGroupLines(top,.065);
-    var raw=lines.length?lines[0].text:"";
-    var match=championsBestResourceMatch(raw,pokemon,.76);
-    return {raw:raw,match:match};
-  }
-
-
-  function championsBestLineMatch(lines,list,minScore){
+  function championsBestPaddleMatch(items,list,minScore){
     var best=null;
-    (lines||[]).forEach(function(line){
-      var match=championsBestResourceMatch(line.text,list,minScore);
-      if(!match)return;
-      if(!best||match.score>best.match.score)best={line:line,match:match};
+    (items||[]).forEach(function(item){
+      var match=championsBestResourceMatch(item.text,list,minScore);
+      if(match&&(!best||match.score>best.match.score)){
+        best={raw:item.text,match:match,item:item};
+      }
     });
+    if(!best&&items&&items.length){
+      var combined=championsTextFromItems(items);
+      var combinedMatch=championsBestResourceMatch(combined,list,minScore);
+      if(combinedMatch)best={raw:combined,match:combinedMatch,item:null};
+    }
     return best;
   }
 
-  function championsMoveMatches(lines,moves){
-    var matched=[];
-    (lines||[]).forEach(function(line){
-      var match=championsBestResourceMatch(line.text,moves,.61);
-      if(!match)return;
-      if(matched.some(function(entry){return entry.match.slug===match.slug}))return;
-      matched.push({raw:line.text,match:match,y:line.y});
+  function championsMoveRowMatch(items,moves,y0,y1){
+    var region=(items||[]).filter(function(item){
+      return item.relX>=.48&&item.relY>=y0&&item.relY<y1;
     });
-    matched.sort(function(a,b){return a.y-b.y});
-    matched=matched.slice(0,4);
-    while(matched.length<4)matched.push({raw:"",match:null});
-    return matched;
+    if(!region.length)return {raw:"",match:null};
+    var byLine=championsBestPaddleMatch(region,moves,.56);
+    if(byLine)return {raw:byLine.raw,match:byLine.match};
+    var raw=championsTextFromItems(region);
+    return {raw:raw,match:championsBestResourceMatch(raw,moves,.53)};
+  }
+
+  function championsExtractPaddleName(items,pokemon){
+    var region=(items||[]).filter(function(item){
+      return item.relX<.56&&item.relY<.28;
+    });
+    var best=championsBestPaddleMatch(region,pokemon,.73);
+    if(best)return {raw:best.raw,match:best.match};
+    return {raw:championsTextFromItems(region),match:null};
+  }
+
+  function championsParsePaddleMovesCard(items,resources){
+    var name=championsExtractPaddleName(items,resources.pokemon);
+    var left=(items||[]).filter(function(item){
+      return item.relX<.53&&item.relY>.18;
+    });
+    var abilityBest=championsBestPaddleMatch(left,resources.abilities,.64);
+    var itemBest=championsBestPaddleMatch(left,resources.items,.64);
+
+    if(abilityBest&&itemBest&&abilityBest.item&&itemBest.item&&abilityBest.item===itemBest.item){
+      if(abilityBest.match.score>=itemBest.match.score+.08)itemBest=null;
+      else if(itemBest.match.score>=abilityBest.match.score+.08)abilityBest=null;
+      else{abilityBest=null;itemBest=null}
+    }
+
+    // Champions uses four stable horizontal move rows. Reading each row as a
+    // separate semantic region prevents a missed first row from shifting moves 2–4.
+    var rows=[[.05,.31],[.29,.53],[.51,.76],[.74,1.01]];
+    return {
+      name:name,
+      ability:{
+        raw:abilityBest?abilityBest.raw:"",
+        match:abilityBest?abilityBest.match:null
+      },
+      item:{
+        raw:itemBest?itemBest.raw:"",
+        match:itemBest?itemBest.match:null
+      },
+      moves:rows.map(function(range){
+        return championsMoveRowMatch(items,resources.moves,range[0],range[1]);
+      })
+    };
+  }
+
+  function championsNumbersFromText(value){
+    return (String(value||"").match(/\d+/g)||[]).map(function(part){
+      return Number(part);
+    }).filter(function(number){return Number.isFinite(number)});
+  }
+
+  function championsPaddleStatCell(items,x0,x1,y0,y1){
+    var region=(items||[]).filter(function(item){
+      return item.relX>=x0&&item.relX<x1&&item.relY>=y0&&item.relY<y1;
+    }).sort(function(a,b){return a.relX-b.relX});
+    var values=[];
+    region.forEach(function(item){
+      championsNumbersFromText(item.text).forEach(function(value){values.push(value)});
+    });
+    var pair={value:null,sp:null,raw:championsTextFromItems(region)};
+    if(values.length>=2){
+      // The final battle stat is the first plausible number; Stat Points are
+      // shown at the far right and are therefore the last plausible 0–32 value.
+      for(var i=0;i<values.length;i++){
+        if(values[i]>=20&&values[i]<=999){pair.value=values[i];break}
+      }
+      for(var j=values.length-1;j>=0;j--){
+        if(values[j]>=0&&values[j]<=32){pair.sp=values[j];break}
+      }
+    }else if(values.length===1){
+      if(values[0]>32&&values[0]<=999)pair.value=values[0];
+      else if(values[0]>=0&&values[0]<=32)pair.sp=values[0];
+    }
+    return pair;
+  }
+
+  function championsParsePaddleStatsCard(items,resources){
+    var name=championsExtractPaddleName(items,resources.pokemon);
+    var rows=[[.22,.49],[.47,.73],[.71,1.01]];
+    var stats={};
+    ["hp","attack","defense"].forEach(function(key,index){
+      stats[key]=championsPaddleStatCell(items,.08,.505,rows[index][0],rows[index][1]);
+    });
+    ["specialAttack","specialDefense","speed"].forEach(function(key,index){
+      stats[key]=championsPaddleStatCell(items,.515,1.01,rows[index][0],rows[index][1]);
+    });
+    championsRepairStatPoints(stats);
+    return {name:name,stats:stats};
   }
 
   function championsEvidencePokemonName(slug){
@@ -2794,6 +2885,22 @@
     var mega=value.match(/^(.+)-mega(?:-(x|y))?$/);
     if(mega)return prettyName(mega[1])+" — Mega"+(mega[2]?" "+mega[2].toUpperCase():"");
     return prettyName(value);
+  }
+
+  function championsSpeciesFromMegaStone(mon){
+    var item=mon&&mon.item&&mon.item.match&&mon.item.match.slug||"";
+    if(!item)return null;
+    var special={
+      "charizardite-x":"charizard",
+      "charizardite-y":"charizard",
+      "mewtwonite-x":"mewtwo",
+      "mewtwonite-y":"mewtwo"
+    };
+    if(special[item])return special[item];
+    var base=item.replace(/ite(?:-[xy])?$/,"");
+    if(!base||base===item)return null;
+    var speciesMatch=championsBestResourceMatch(base,pokemonList,.62);
+    return speciesMatch&&speciesMatch.slug||null;
   }
 
   async function championsPokemonEvidenceList(kind,slug){
@@ -2818,50 +2925,6 @@
         return entry&&entry.name;
       }).filter(Boolean);
     }catch(e){return []}
-  }
-
-  function championsSpeciesFromMegaStone(mon){
-    var item=mon&&mon.item&&mon.item.match&&mon.item.match.slug||"";
-    if(!item)return null;
-    var special={
-      "charizardite-x":"charizard",
-      "charizardite-y":"charizard",
-      "mewtwonite-x":"mewtwo",
-      "mewtwonite-y":"mewtwo"
-    };
-    if(special[item])return special[item];
-    if(/ite$/.test(item)){
-      var base=item.replace(/ite$/,"");
-      if(base&&base.length>=4)return base;
-    }
-    return null;
-  }
-
-  async function championsPokemonMoveSet(slug){
-    if(!slug)return null;
-    try{
-      var res=await fetch(API+"/pokemon/"+encodeURIComponent(slug));
-      if(!res.ok)return null;
-      var data=await res.json();
-      var set={};
-      (data.moves||[]).forEach(function(entry){
-        if(entry&&entry.move&&entry.move.name)set[entry.move.name]=true;
-      });
-      return set;
-    }catch(e){return null}
-  }
-
-  async function championsValidateMovesForSpecies(mon){
-    var slug=mon&&mon.name&&mon.name.match&&mon.name.match.slug;
-    if(!slug)return;
-    var allowed=await championsPokemonMoveSet(slug);
-    if(!allowed)return;
-    (mon.moves||[]).forEach(function(move){
-      if(move&&move.match&&!allowed[move.match.slug]){
-        move.rejected=move.match;
-        move.match=null;
-      }
-    });
   }
 
   async function championsResolveSpeciesFromEvidence(mon){
@@ -2891,8 +2954,9 @@
       list.forEach(function(slug){scores[slug]=(scores[slug]||0)+weight});
     });
 
-    var ranked=Object.keys(scores).map(function(slug){return {slug:slug,score:scores[slug]}})
-      .sort(function(a,b){return b.score-a.score||a.slug.localeCompare(b.slug)});
+    var ranked=Object.keys(scores).map(function(slug){
+      return {slug:slug,score:scores[slug]};
+    }).sort(function(a,b){return b.score-a.score||a.slug.localeCompare(b.slug)});
     if(!ranked.length)return mon.name;
 
     var direct=mon.name&&mon.name.match&&mon.name.match.slug;
@@ -2902,8 +2966,9 @@
         if(slug===direct||slug.indexOf(direct+"-")===0)directVariants.push(slug);
       });
     }
-    var directBest=directVariants.map(function(slug){return {slug:slug,score:scores[slug]||0}})
-      .sort(function(a,b){return b.score-a.score})[0];
+    var directBest=directVariants.map(function(slug){
+      return {slug:slug,score:scores[slug]||0};
+    }).sort(function(a,b){return b.score-a.score})[0];
 
     var top=ranked[0],second=ranked[1]||{score:0};
     var evidenceMax=sources.reduce(function(total,source){return total+source.weight},0);
@@ -2914,7 +2979,9 @@
     var abilitySupportsDirect=true;
     if(direct&&abilityIndex!==-1){
       var abilityList=lists[abilityIndex]||[];
-      abilitySupportsDirect=abilityList.some(function(slug){return slug===direct||slug.indexOf(direct+"-")===0});
+      abilitySupportsDirect=abilityList.some(function(slug){
+        return slug===direct||slug.indexOf(direct+"-")===0;
+      });
     }
 
     if(directBest&&abilitySupportsDirect&&directBest.score>=Math.max(2,top.score-1)){
@@ -2938,6 +3005,33 @@
     return mon.name;
   }
 
+  async function championsPokemonMoveSet(slug){
+    if(!slug)return null;
+    try{
+      var res=await fetch(API+"/pokemon/"+encodeURIComponent(slug));
+      if(!res.ok)return null;
+      var data=await res.json();
+      var set={};
+      (data.moves||[]).forEach(function(entry){
+        if(entry&&entry.move&&entry.move.name)set[entry.move.name]=true;
+      });
+      return set;
+    }catch(e){return null}
+  }
+
+  async function championsValidateMovesForSpecies(mon){
+    var slug=mon&&mon.name&&mon.name.match&&mon.name.match.slug;
+    if(!slug)return;
+    var allowed=await championsPokemonMoveSet(slug);
+    if(!allowed)return;
+    (mon.moves||[]).forEach(function(move){
+      if(move&&move.match&&!allowed[move.match.slug]){
+        move.rejected=move.match;
+        move.match=null;
+      }
+    });
+  }
+
   function championsRepairStatPoints(stats){
     var known=0,missing=[];
     statKeys.forEach(function(key){
@@ -2954,65 +3048,6 @@
       if(remainder>=0&&remainder<=32)stats[missing[0]].sp=remainder;
     }
     return stats;
-  }
-
-  function championsParseMovesCard(cardWords,resources){
-    var name=championsExtractName(cardWords,resources.pokemon);
-    var left=cardWords.filter(function(word){return word.relX<.5&&word.relY>.22});
-    var right=cardWords.filter(function(word){return word.relX>=.5&&word.relY>.025});
-    var leftLines=championsGroupLines(left,.07).filter(function(line){return line.text});
-    var rightLines=championsGroupLines(right,.058).filter(function(line){return line.text});
-    var abilityBest=championsBestLineMatch(leftLines,resources.abilities,.67);
-    var itemBest=championsBestLineMatch(leftLines,resources.items,.67);
-
-    if(abilityBest&&itemBest&&abilityBest.line===itemBest.line){
-      if(abilityBest.match.score>=itemBest.match.score+.08)itemBest=null;
-      else if(itemBest.match.score>=abilityBest.match.score+.08)abilityBest=null;
-      else{
-        abilityBest=null;
-        itemBest=null;
-      }
-    }
-
-    return {
-      name:name,
-      ability:{
-        raw:abilityBest?abilityBest.line.text:"",
-        match:abilityBest?abilityBest.match:null
-      },
-      item:{
-        raw:itemBest?itemBest.line.text:"",
-        match:itemBest?itemBest.match:null
-      },
-      moves:championsMoveMatches(rightLines,resources.moves)
-    };
-  }
-
-  function championsStatPair(line){
-    var values=String(line&&line.text||"").match(/\d+/g)||[];
-    values=values.map(function(value){return Number(value)}).filter(function(value){return Number.isFinite(value)});
-    var pair={value:null,sp:null,raw:line&&line.text||""};
-    if(values.length>=2){
-      pair.value=values[values.length-2];
-      pair.sp=values[values.length-1];
-    }else if(values.length===1){
-      pair.value=values[0];
-    }
-    if(pair.sp!=null&&(pair.sp<0||pair.sp>32))pair.sp=null;
-    if(pair.value!=null&&(pair.value<20||pair.value>999))pair.value=null;
-    return pair;
-  }
-
-  function championsParseStatsCard(cardWords,resources){
-    var name=championsExtractName(cardWords,resources.pokemon);
-    var leftLines=championsGroupLines(cardWords.filter(function(word){return word.relX<.5&&word.relY>.24}),.07).slice(0,3);
-    var rightLines=championsGroupLines(cardWords.filter(function(word){return word.relX>=.5&&word.relY>.24}),.07).slice(0,3);
-    var keysLeft=["hp","attack","defense"],keysRight=["specialAttack","specialDefense","speed"];
-    var stats={};
-    keysLeft.forEach(function(key,index){stats[key]=championsStatPair(leftLines[index])});
-    keysRight.forEach(function(key,index){stats[key]=championsStatPair(rightLines[index])});
-    championsRepairStatPoints(stats);
-    return {name:name,stats:stats};
   }
 
   function championsOcrField(value){
@@ -3055,232 +3090,6 @@
     $("#championsOcrProgressBar").style.width=percent+"%";
   }
 
-  async function championsRecogniseSlot(worker,slot,label,offset,span){
-    var prepared=championsBuildOcrCanvas(slot);
-    championsSetOcrProgress(label,offset);
-    var result=await worker.recognize(prepared.canvas,{tessedit_pageseg_mode:"11"},{tsv:true,text:true});
-    championsSetOcrProgress(label,offset+span);
-    return {
-      words:championsParseTsv(result.data&&result.data.tsv),
-      canvas:prepared.canvas,
-      detection:prepared.detection
-    };
-  }
-
-
-  function championsBuildMoveFallbackCanvas(slot,indexes){
-    var image=slot.image;
-    var naturalWidth=image.naturalWidth||image.width;
-    var naturalHeight=image.naturalHeight||image.height;
-    var cellWidth=760,cellHeight=92,gap=14,margin=18;
-    var canvas=document.createElement("canvas");
-    canvas.width=margin*2+cellWidth*4+gap*3;
-    canvas.height=margin*2+cellHeight*indexes.length+gap*Math.max(0,indexes.length-1);
-    var ctx=canvas.getContext("2d",{willReadFrequently:true});
-    ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
-    var cells=[];
-    var rowRanges=[[.055,.285],[.275,.505],[.495,.735],[.725,.965]];
-
-    indexes.forEach(function(cardIndex,gridRow){
-      var box=slot.detection.cards[cardIndex];
-      rowRanges.forEach(function(range,moveIndex){
-        // Text-only area: skip the type/damage icon and keep just the move name.
-        var x0=.655,x1=.985,y0=range[0],y1=range[1];
-        var sx=(box.x+box.width*x0)*naturalWidth;
-        var sy=(box.y+box.height*y0)*naturalHeight;
-        var sw=box.width*(x1-x0)*naturalWidth;
-        var sh=box.height*(y1-y0)*naturalHeight;
-        var dx=margin+moveIndex*(cellWidth+gap);
-        var dy=margin+gridRow*(cellHeight+gap);
-
-        ctx.drawImage(image,sx,sy,sw,sh,dx,dy,cellWidth,cellHeight);
-
-        var imageData=ctx.getImageData(dx,dy,cellWidth,cellHeight);
-        var data=imageData.data;
-        for(var p=0;p<data.length;p+=4){
-          var r=data[p],g=data[p+1],b=data[p+2];
-          var lum=.299*r+.587*g+.114*b;
-          var spread=Math.max(r,g,b)-Math.min(r,g,b);
-          var isText=lum>150||(lum>136&&spread<48);
-          var v=isText?0:255;
-          data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
-        }
-        ctx.putImageData(imageData,dx,dy);
-        cells.push({
-          cardIndex:cardIndex,moveIndex:moveIndex,
-          x:dx/canvas.width,y:dy/canvas.height,
-          width:cellWidth/canvas.width,height:cellHeight/canvas.height
-        });
-      });
-    });
-
-    return {canvas:canvas,cells:cells,indexes:indexes.slice()};
-  }
-
-  function championsWordsInCell(words,cell,canvas){
-    var x=cell.x*canvas.width,y=cell.y*canvas.height,w=cell.width*canvas.width,h=cell.height*canvas.height;
-    return words.filter(function(word){
-      return word.cx>=x&&word.cx<=x+w&&word.cy>=y&&word.cy<=y+h;
-    }).sort(function(a,b){return a.cx-b.cx});
-  }
-
-  async function championsFallbackMoves(worker,slot,parsedCards,resources){
-    var indexes=[];
-    parsedCards.forEach(function(card,index){
-      var recognised=(card.moves||[]).filter(function(move){return move&&move.match}).length;
-      if(recognised<4)indexes.push(index);
-    });
-    if(!indexes.length)return;
-
-    var prepared=championsBuildMoveFallbackCanvas(slot,indexes);
-    if(worker.setParameters){
-      await worker.setParameters({
-        tessedit_char_whitelist:"",
-        tessedit_pageseg_mode:"11"
-      });
-    }
-    var result=await worker.recognize(prepared.canvas,{tessedit_pageseg_mode:"11"},{tsv:true,text:true});
-    var words=championsParseTsv(result.data&&result.data.tsv);
-    var byCard={};
-
-    prepared.cells.forEach(function(cell){
-      var cellWords=championsWordsInCell(words,cell,prepared.canvas);
-      var text=cellWords.map(function(word){return word.text}).join(" ").replace(/\s+/g," ").trim();
-      var match=championsBestResourceMatch(text,resources.moves,.58);
-      if(!byCard[cell.cardIndex])byCard[cell.cardIndex]=[null,null,null,null];
-      byCard[cell.cardIndex][cell.moveIndex]={raw:text,match:match};
-    });
-
-    Object.keys(byCard).forEach(function(key){
-      var cardIndex=Number(key);
-      var targeted=byCard[key];
-      var targetedCount=targeted.filter(function(move){return move&&move.match}).length;
-      var currentCount=(parsedCards[cardIndex].moves||[]).filter(function(move){return move&&move.match}).length;
-      if(targetedCount>=currentCount&&targetedCount>=3){
-        parsedCards[cardIndex].moves=targeted;
-      }
-    });
-  }
-
-
-  function championsBuildStatsFallbackCanvas(slot){
-    var image=slot.image;
-    var naturalWidth=image.naturalWidth||image.width;
-    var naturalHeight=image.naturalHeight||image.height;
-    var cellWidth=430,cellHeight=90,gap=12,margin=16;
-    var canvas=document.createElement("canvas");
-    canvas.width=margin*2+cellWidth*6+gap*5;
-    canvas.height=margin*2+cellHeight*6+gap*5;
-    var ctx=canvas.getContext("2d",{willReadFrequently:true});
-    ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
-    var cells=[];
-    var rowRanges=[[.275,.49],[.495,.715],[.715,.945]];
-
-    slot.detection.cards.forEach(function(box,cardIndex){
-      statKeys.forEach(function(key,statIndex){
-        var rightHalf=statIndex>=3;
-        var row=rightHalf?statIndex-3:statIndex;
-        // Keep only final stat + SP columns, excluding labels and nature arrows.
-        var x0=rightHalf?.745:.295;
-        var x1=rightHalf?.985:.495;
-        var y0=rowRanges[row][0],y1=rowRanges[row][1];
-
-        var sx=(box.x+box.width*x0)*naturalWidth;
-        var sy=(box.y+box.height*y0)*naturalHeight;
-        var sw=box.width*(x1-x0)*naturalWidth;
-        var sh=box.height*(y1-y0)*naturalHeight;
-
-        var col=statIndex,gridRow=cardIndex;
-        var dx=margin+col*(cellWidth+gap);
-        var dy=margin+gridRow*(cellHeight+gap);
-        ctx.drawImage(image,sx,sy,sw,sh,dx,dy,cellWidth,cellHeight);
-
-        var imageData=ctx.getImageData(dx,dy,cellWidth,cellHeight);
-        var data=imageData.data;
-        for(var p=0;p<data.length;p+=4){
-          var r=data[p],g=data[p+1],b=data[p+2];
-          var lum=.299*r+.587*g+.114*b;
-          var v=lum>145?0:255;
-          data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
-        }
-        ctx.putImageData(imageData,dx,dy);
-        cells.push({
-          cardIndex:cardIndex,key:key,
-          x:dx/canvas.width,y:dy/canvas.height,
-          width:cellWidth/canvas.width,height:cellHeight/canvas.height
-        });
-      });
-    });
-
-    return {canvas:canvas,cells:cells};
-  }
-
-  function championsParseNumberCell(words,cell,canvas){
-    var cellWords=championsWordsInCell(words,cell,canvas);
-    var values=[];
-    cellWords.forEach(function(word){
-      var groups=String(word.text||"").match(/\d+/g)||[];
-      groups.forEach(function(group){
-        var value=Number(group);
-        if(Number.isFinite(value))values.push(value);
-      });
-    });
-
-    if(!values.length)return {value:null,sp:null};
-    if(values.length>=2){
-      var statValue=values[0],spValue=values[values.length-1];
-      return {
-        value:statValue>=20&&statValue<=999?statValue:null,
-        sp:spValue>=0&&spValue<=32?spValue:null
-      };
-    }
-    if(values[0]>32)return {value:values[0]<=999?values[0]:null,sp:null};
-    return {value:null,sp:values[0]};
-  }
-
-  async function championsFallbackStats(worker,slot,parsedCards){
-    var prepared=championsBuildStatsFallbackCanvas(slot);
-    if(worker.setParameters){
-      await worker.setParameters({
-        tessedit_char_whitelist:"0123456789",
-        tessedit_pageseg_mode:"11"
-      });
-    }
-
-    var result=await worker.recognize(prepared.canvas,{tessedit_pageseg_mode:"11"},{tsv:true,text:true});
-    var words=championsParseTsv(result.data&&result.data.tsv);
-
-    prepared.cells.forEach(function(cell){
-      var parsed=championsParseNumberCell(words,cell,prepared.canvas);
-      var target=parsedCards[cell.cardIndex]&&parsedCards[cell.cardIndex].stats[cell.key];
-      if(!target)return;
-      if(parsed.value!=null)target.value=parsed.value;
-      if(parsed.sp!=null)target.sp=parsed.sp;
-    });
-
-    parsedCards.forEach(function(card){
-      var sum=statKeys.reduce(function(total,key){
-        var sp=card.stats[key]&&card.stats[key].sp;
-        return total+(sp==null?0:sp);
-      },0);
-      if(sum>66){
-        statKeys.forEach(function(key){
-          var sp=card.stats[key]&&card.stats[key].sp;
-          if(sp!=null&&sp>32)card.stats[key].sp=null;
-        });
-      }
-      championsRepairStatPoints(card.stats);
-    });
-
-    if(worker.setParameters){
-      await worker.setParameters({
-        tessedit_char_whitelist:"",
-        tessedit_pageseg_mode:"11"
-      });
-    }
-  }
-
-
   async function readChampionsTeam(){
     var status=$("#championsImportStatus");
     var first=championsImportSlots[0],second=championsImportSlots[1];
@@ -3288,77 +3097,87 @@
     var statsSlot=first.detection.kind==="stats"?first:second;
     var button=$("#checkChampionsScreenshots");
 
-    if(!window.Tesseract||typeof window.Tesseract.createWorker!=="function"){
-      throw new Error("The OCR engine could not be loaded. Check your connection and try again.");
-    }
-
     championsOcrRunning=true;
     button.disabled=true;
     button.textContent="Reading team…";
     $("#championsOcrResults").hidden=true;
-    status.textContent="Loading the local OCR engine…";
+    status.textContent="Starting PaddleOCR v2. The first run downloads the OCR models to your browser.";
     status.classList.remove("is-error","is-success");
 
-    var resourcePromise=Promise.all([
+    var resourcesPromise=Promise.all([
       ensurePokemonList(),
       ensureResourceList("ability"),
       ensureResourceList("item"),
       ensureResourceList("move")
     ]);
-
-    var activeStage={label:"Loading OCR…",base:0,span:.12};
-    var worker=await window.Tesseract.createWorker("eng",1,{
-      logger:function(message){
-        if(!message||typeof message.progress!=="number")return;
-        championsSetOcrProgress(activeStage.label,activeStage.base+message.progress*activeStage.span);
-      }
-    });
+    var ocrPromise=championsEnsurePaddleOcr();
 
     try{
-      var resourcesRaw=await resourcePromise;
-      var resources={pokemon:resourcesRaw[0],abilities:resourcesRaw[1],items:resourcesRaw[2],moves:resourcesRaw[3]};
+      var resourcesRaw=await resourcesPromise;
+      var resources={
+        pokemon:resourcesRaw[0],
+        abilities:resourcesRaw[1],
+        items:resourcesRaw[2],
+        moves:resourcesRaw[3]
+      };
+      var ocr=await ocrPromise;
 
-      activeStage={label:"Reading Moves & More…",base:.12,span:.39};
-      var movesRead=await championsRecogniseSlot(worker,movesSlot,"Reading Moves & More…",.12,.39);
-
-      activeStage={label:"Reading Stats…",base:.51,span:.39};
-      var statsRead=await championsRecogniseSlot(worker,statsSlot,"Reading Stats…",.51,.39);
-
-      championsSetOcrProgress("Matching recognised text…",.90);
-      var movesCards=championsWordsByCard(movesRead.words,movesRead.detection,movesRead.canvas).map(function(words){
-        return championsParseMovesCard(words,resources);
+      championsSetOcrProgress("Preparing the 12 team panels…",.30);
+      var movesCanvases=movesSlot.detection.cards.map(function(box){
+        return championsBuildPaddleCardCanvas(movesSlot,box);
       });
-      var statsCards=championsWordsByCard(statsRead.words,statsRead.detection,statsRead.canvas).map(function(words){
-        return championsParseStatsCard(words,resources);
+      var statsCanvases=statsSlot.detection.cards.map(function(box){
+        return championsBuildPaddleCardCanvas(statsSlot,box);
       });
+      var inputs=movesCanvases.concat(statsCanvases);
 
-      championsSetOcrProgress("Recovering missed moves…",.91);
-      await championsFallbackMoves(worker,movesSlot,movesCards,resources);
-      championsSetOcrProgress("Recovering stat values…",.94);
-      await championsFallbackStats(worker,statsSlot,statsCards);
+      championsSetOcrProgress("Reading team panels with PaddleOCR…",.42);
+      var results=await ocr.predict(inputs,{
+        textDetLimitSideLen:1536,
+        textDetLimitType:"max",
+        textDetThresh:.18,
+        textDetBoxThresh:.28,
+        textDetUnclipRatio:1.45,
+        textRecScoreThresh:.18
+      });
+      if(!Array.isArray(results)||results.length!==12){
+        throw new Error("PaddleOCR returned an incomplete team read. Please try again.");
+      }
+
+      championsSetOcrProgress("Matching Pokémon data…",.80);
+      var movesCards=results.slice(0,6).map(function(result,index){
+        return championsParsePaddleMovesCard(championsPaddleItems(result,movesCanvases[index]),resources);
+      });
+      var statsCards=results.slice(6,12).map(function(result,index){
+        return championsParsePaddleStatsCard(championsPaddleItems(result,statsCanvases[index]),resources);
+      });
 
       var team=[];
       for(var i=0;i<6;i++){
         var moves=movesCards[i]||{},stats=statsCards[i]||{};
-        var name=(moves.name&&moves.name.match)?moves.name:(stats.name&&stats.name.match)?stats.name:(moves.name&&moves.name.raw)?moves.name:stats.name;
+        var name=(moves.name&&moves.name.match)?moves.name
+          :(stats.name&&stats.name.match)?stats.name
+          :(moves.name&&moves.name.raw)?moves.name
+          :stats.name;
         team.push({
           name:name||{raw:"",match:null},
           ability:moves.ability||{raw:"",match:null},
           item:moves.item||{raw:"",match:null},
-          moves:moves.moves||[],
+          moves:moves.moves||[{raw:"",match:null},{raw:"",match:null},{raw:"",match:null},{raw:"",match:null}],
           stats:stats.stats||{}
         });
       }
 
-      championsSetOcrProgress("Cross-checking species…",.97);
+      championsSetOcrProgress("Cross-checking team details…",.90);
       await Promise.all(team.map(championsResolveSpeciesFromEvidence));
       await Promise.all(team.map(championsValidateMovesForSpecies));
+      team.forEach(function(mon){championsRepairStatPoints(mon.stats||{})});
+
       championsRenderOcrResults(team);
-      championsSetOcrProgress("OCR preview ready",1);
-      status.textContent="First OCR pass complete. Review the six slots below — unresolved fields are being left blank rather than guessed.";
+      championsSetOcrProgress("PaddleOCR v2 preview ready",1);
+      status.textContent="PaddleOCR v2 pass complete. Review the six slots below — uncertain fields are still left unresolved rather than guessed.";
       status.classList.add("is-success");
     }finally{
-      try{await worker.terminate()}catch(e){}
       championsOcrRunning=false;
       button.disabled=false;
       button.textContent="Read again";
