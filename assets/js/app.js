@@ -41,6 +41,7 @@
   var statsLoading=false;
   var toastTimer=null;
   var editorScrollLockY=0;
+  var championsImportSlots=[null,null];
 
   function $(s,root){return (root||document).querySelector(s)}
   function $$(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s))}
@@ -125,6 +126,8 @@
     if(goSettings)goSettings.hidden=!isGo;
     var eyebrow=$("#teamSlotEyebrow");
     if(eyebrow)eyebrow.textContent=isGo?"Three slots":"Six slots";
+    var championsImport=$("#openChampionsImport");
+    if(championsImport)championsImport.hidden=state.game!=="champions";
     var showdownImport=$("#openShowdownImport");
     if(showdownImport)showdownImport.hidden=isGo;
     var sheetMode=$("#sheetModeControl");
@@ -2406,6 +2409,256 @@
     return mon;
   }
 
+
+  function championsKindLabel(kind){
+    if(kind==="moves")return "Moves & More detected";
+    if(kind==="stats")return "Stats detected";
+    return "Screen type not recognised";
+  }
+
+  function cleanupChampionsSlot(index){
+    var slot=championsImportSlots[index];
+    if(slot&&slot.objectUrl){
+      try{URL.revokeObjectURL(slot.objectUrl)}catch(e){}
+    }
+    championsImportSlots[index]=null;
+  }
+
+  function resetChampionsImporter(){
+    [0,1].forEach(function(index){
+      cleanupChampionsSlot(index);
+      var input=$("#championsScreenshot"+index);
+      if(input)input.value="";
+      var preview=$("#championsPreview"+index);
+      var empty=$("#championsEmpty"+index);
+      var image=$("#championsPreviewImage"+index);
+      var layer=$("#championsDetection"+index);
+      if(preview)preview.hidden=true;
+      if(empty)empty.hidden=false;
+      if(image)image.removeAttribute("src");
+      if(layer)layer.innerHTML="";
+      $("#championsKind"+index).textContent="Checking…";
+      $("#championsMeta"+index).textContent="";
+    });
+    var status=$("#championsImportStatus");
+    if(status){status.textContent="";status.classList.remove("is-error","is-success")}
+    var button=$("#checkChampionsScreenshots");
+    if(button)button.disabled=true;
+  }
+
+  function loadChampionsImage(file){
+    return new Promise(function(resolve,reject){
+      var objectUrl=URL.createObjectURL(file);
+      var image=new Image();
+      image.onload=function(){resolve({image:image,objectUrl:objectUrl})};
+      image.onerror=function(){URL.revokeObjectURL(objectUrl);reject(new Error("That image could not be read."))};
+      image.src=objectUrl;
+    });
+  }
+
+  function isChampionsPurplePixel(data,index){
+    var r=data[index],g=data[index+1],b=data[index+2];
+    return b>130&&b>r+25&&b>g+20&&r>70&&r<195&&g>55&&g<185;
+  }
+
+  function analyseChampionsLayout(image){
+    var maxWidth=640;
+    var scale=Math.min(1,maxWidth/image.naturalWidth);
+    var width=Math.max(1,Math.round(image.naturalWidth*scale));
+    var height=Math.max(1,Math.round(image.naturalHeight*scale));
+    var canvas=document.createElement("canvas");
+    canvas.width=width;canvas.height=height;
+    var ctx=canvas.getContext("2d",{willReadFrequently:true});
+    ctx.drawImage(image,0,0,width,height);
+    var pixels=ctx.getImageData(0,0,width,height).data;
+    var mask=new Uint8Array(width*height);
+    var greenCount=0,greenX=0;
+
+    for(var y=0;y<height;y++){
+      for(var x=0;x<width;x++){
+        var p=y*width+x,i=p*4;
+        if(isChampionsPurplePixel(pixels,i))mask[p]=1;
+
+        if(x>width*.25&&x<width*.75&&y>height*.13&&y<height*.28){
+          var r=pixels[i],g=pixels[i+1],b=pixels[i+2];
+          if(g>150&&g>r*1.08&&g>b*1.6&&r>70&&r<220){
+            greenCount++;greenX+=x;
+          }
+        }
+      }
+    }
+
+    var seen=new Uint8Array(mask.length);
+    var components=[];
+    var neighbours=[-1,1,-width,width];
+
+    for(var start=0;start<mask.length;start++){
+      if(!mask[start]||seen[start])continue;
+      var stack=[start],minX=width,maxX=0,minY=height,maxY=0,count=0;
+      seen[start]=1;
+      while(stack.length){
+        var current=stack.pop();
+        var cy=Math.floor(current/width),cx=current-cy*width;
+        if(cx<minX)minX=cx;if(cx>maxX)maxX=cx;
+        if(cy<minY)minY=cy;if(cy>maxY)maxY=cy;
+        count++;
+        for(var n=0;n<4;n++){
+          var next=current+neighbours[n];
+          if(next<0||next>=mask.length||seen[next]||!mask[next])continue;
+          var ny=Math.floor(next/width),nx=next-ny*width;
+          if(Math.abs(nx-cx)+Math.abs(ny-cy)!==1)continue;
+          seen[next]=1;stack.push(next);
+        }
+      }
+      var boxWidth=maxX-minX+1,boxHeight=maxY-minY+1,ratio=boxWidth/Math.max(1,boxHeight);
+      if(boxWidth>width*.18&&boxHeight>height*.07&&boxHeight<height*.28&&ratio>2&&ratio<8&&count>width*height*.004){
+        components.push({x:minX,y:minY,width:boxWidth,height:boxHeight,cx:minX+boxWidth/2,cy:minY+boxHeight/2,area:count});
+      }
+    }
+
+    components.sort(function(a,b){return a.cy-b.cy});
+    var rows=[];
+    components.forEach(function(box){
+      var row=null;
+      for(var i=0;i<rows.length;i++){
+        if(Math.abs(rows[i].cy-box.cy)<height*.07){row=rows[i];break}
+      }
+      if(!row){row={cy:box.cy,boxes:[]};rows.push(row)}
+      row.boxes.push(box);
+      row.cy=row.boxes.reduce(function(total,item){return total+item.cy},0)/row.boxes.length;
+    });
+    rows.sort(function(a,b){return a.cy-b.cy});
+    var cards=[];
+    rows.forEach(function(row){
+      row.boxes.sort(function(a,b){return a.cx-b.cx});
+      row.boxes.forEach(function(box){cards.push(box)});
+    });
+
+    if(cards.length>6){
+      cards=cards.sort(function(a,b){return b.area-a.area}).slice(0,6);
+      cards.sort(function(a,b){
+        if(Math.abs(a.cy-b.cy)<height*.07)return a.cx-b.cx;
+        return a.cy-b.cy;
+      });
+    }
+
+    var kind="unknown";
+    if(greenCount>Math.max(50,width*height*.00035)){
+      var greenCentre=(greenX/greenCount)/width;
+      kind=greenCentre<.5?"moves":"stats";
+    }
+
+    return {
+      kind:kind,
+      width:image.naturalWidth,
+      height:image.naturalHeight,
+      cards:cards.map(function(box){
+        return {x:box.x/width,y:box.y/height,width:box.width/width,height:box.height/height};
+      })
+    };
+  }
+
+  function renderChampionsDetection(index,detection){
+    var layer=$("#championsDetection"+index);
+    if(!layer)return;
+    layer.innerHTML=detection.cards.map(function(box,cardIndex){
+      return '<i class="champions-detection-box" style="left:'+(box.x*100).toFixed(2)+'%;top:'+(box.y*100).toFixed(2)+'%;width:'+(box.width*100).toFixed(2)+'%;height:'+(box.height*100).toFixed(2)+'%"><span>'+(cardIndex+1)+'</span></i>';
+    }).join("");
+  }
+
+  function updateChampionsCheckButton(){
+    var button=$("#checkChampionsScreenshots");
+    if(button)button.disabled=!(championsImportSlots[0]&&championsImportSlots[1]);
+  }
+
+  async function handleChampionsScreenshot(index,file){
+    if(!file)return;
+    var status=$("#championsImportStatus");
+    status.classList.remove("is-error","is-success");
+    if(!/^image\//i.test(file.type||"")){
+      status.textContent="Please choose an image file.";
+      status.classList.add("is-error");
+      return;
+    }
+
+    cleanupChampionsSlot(index);
+    $("#championsKind"+index).textContent="Checking…";
+    $("#championsMeta"+index).textContent=file.name||"Screenshot";
+
+    try{
+      var loaded=await loadChampionsImage(file);
+      var detection=analyseChampionsLayout(loaded.image);
+      championsImportSlots[index]={file:file,objectUrl:loaded.objectUrl,detection:detection};
+
+      $("#championsPreviewImage"+index).src=loaded.objectUrl;
+      $("#championsEmpty"+index).hidden=true;
+      $("#championsPreview"+index).hidden=false;
+      $("#championsKind"+index).textContent=championsKindLabel(detection.kind);
+      $("#championsMeta"+index).textContent=detection.width+" × "+detection.height+" · "+detection.cards.length+" team panel"+(detection.cards.length===1?"":"s");
+      renderChampionsDetection(index,detection);
+
+      if(detection.cards.length!==6){
+        status.textContent="This screenshot loaded, but I found "+detection.cards.length+" of the 6 team panels. Try the original uncropped screenshot.";
+        status.classList.add("is-error");
+      }else{
+        status.textContent="Layout recognised. Add the other Champions screen to continue.";
+      }
+      updateChampionsCheckButton();
+    }catch(error){
+      status.textContent=error&&error.message?error.message:"That screenshot could not be analysed.";
+      status.classList.add("is-error");
+      updateChampionsCheckButton();
+    }
+  }
+
+  function openChampionsImport(){
+    if(state.game!=="champions")return;
+    resetChampionsImporter();
+    var dialog=$("#championsImportDialog");
+    if(dialog&&typeof dialog.showModal==="function"){
+      dialog.showModal();
+      document.body.classList.add("champions-import-open");
+    }
+  }
+
+  function closeChampionsImport(){
+    var dialog=$("#championsImportDialog");
+    if(dialog&&dialog.open)dialog.close();
+    document.body.classList.remove("champions-import-open");
+  }
+
+  function checkChampionsScreenshots(event){
+    event.preventDefault();
+    var status=$("#championsImportStatus");
+    var first=championsImportSlots[0]&&championsImportSlots[0].detection;
+    var second=championsImportSlots[1]&&championsImportSlots[1].detection;
+    status.classList.remove("is-error","is-success");
+
+    if(!first||!second){
+      status.textContent="Add both Champions screenshots first.";
+      status.classList.add("is-error");
+      return;
+    }
+    if(first.cards.length!==6||second.cards.length!==6){
+      status.textContent="I need to find all six team panels on both screenshots before the team can be read.";
+      status.classList.add("is-error");
+      return;
+    }
+    if(first.kind==="unknown"||second.kind==="unknown"){
+      status.textContent="The six panels were found, but one screen could not be identified as Moves & More or Stats. Keep the full top tab bar visible.";
+      status.classList.add("is-error");
+      return;
+    }
+    if(first.kind===second.kind){
+      status.textContent="These look like two copies of the same Champions screen. Add one Moves & More screenshot and one Stats screenshot.";
+      status.classList.add("is-error");
+      return;
+    }
+
+    status.textContent="Both Champions screens are recognised: 6 team panels on Moves & More and 6 on Stats. This layout is ready for the OCR import stage.";
+    status.classList.add("is-success");
+  }
+
   function openShowdownImport(){
     var dialog=$("#showdownDialog");
     $("#showdownImportStatus").textContent="";
@@ -2470,6 +2723,24 @@
     $("#newTeamDialog").addEventListener("click",function(e){if(e.target===this)this.close()});
     $$("[data-nav]").forEach(function(b){b.addEventListener("click",function(){navigate(b.dataset.nav)})});
     $("#teamGrid").addEventListener("click",function(e){var slot=e.target.closest(".team-slot");if(slot)openEditor(Number(slot.dataset.slot))});
+    $("#openChampionsImport").addEventListener("click",openChampionsImport);
+    $("#championsImportForm").addEventListener("submit",checkChampionsScreenshots);
+    $("#closeChampionsImport").addEventListener("click",closeChampionsImport);
+    $("#cancelChampionsImport").addEventListener("click",closeChampionsImport);
+    $("#championsImportDialog").addEventListener("click",function(e){if(e.target===this)closeChampionsImport()});
+    $("#championsImportDialog").addEventListener("close",function(){document.body.classList.remove("champions-import-open");resetChampionsImporter()});
+    [0,1].forEach(function(index){
+      $("#championsScreenshot"+index).addEventListener("change",function(){handleChampionsScreenshot(index,this.files&&this.files[0])});
+    });
+    $("[data-champions-drop]").forEach(function(card){
+      ["dragenter","dragover"].forEach(function(name){card.addEventListener(name,function(e){e.preventDefault();card.classList.add("is-dragover")})});
+      ["dragleave","drop"].forEach(function(name){card.addEventListener(name,function(e){e.preventDefault();card.classList.remove("is-dragover")})});
+      card.addEventListener("drop",function(e){
+        var index=Number(card.dataset.championsDrop);
+        var file=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+        if(file)handleChampionsScreenshot(index,file);
+      });
+    });
     $("#openShowdownImport").addEventListener("click",openShowdownImport);
     $("#showdownImportForm").addEventListener("submit",importShowdownTeam);
     $("#closeShowdownDialog").addEventListener("click",closeShowdownImport);
