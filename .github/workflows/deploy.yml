@@ -30,6 +30,19 @@ jobs:
           npm run build:ocr
           test -f assets/vendor/paddleocr/paddleocr.js
 
+          mkdir -p assets/vendor/paddleocr/ort assets/vendor/paddleocr/models
+          cp node_modules/onnxruntime-web/dist/*.wasm assets/vendor/paddleocr/ort/
+
+          curl -fL --retry 3 --retry-delay 2 \
+            -o assets/vendor/paddleocr/models/PP-OCRv6_tiny_det_onnx_infer.tar \
+            "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv6_tiny_det_onnx_infer.tar"
+          curl -fL --retry 3 --retry-delay 2 \
+            -o assets/vendor/paddleocr/models/PP-OCRv6_tiny_rec_onnx_infer.tar \
+            "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv6_tiny_rec_onnx_infer.tar"
+
+          test -s assets/vendor/paddleocr/models/PP-OCRv6_tiny_det_onnx_infer.tar
+          test -s assets/vendor/paddleocr/models/PP-OCRv6_tiny_rec_onnx_infer.tar
+
       - name: Validate site
         run: |
           test -f index.html
