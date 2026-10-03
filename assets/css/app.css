@@ -2334,3 +2334,49 @@ body.champions-import-open{overflow:hidden}
   .champions-import-actions{display:grid;grid-template-columns:1fr 1fr;position:sticky;bottom:0;padding-top:10px;background:linear-gradient(180deg,rgba(245,246,251,0),var(--bg) 28%)}
   .champions-import-button{min-height:34px;font-size:10px}
 }
+
+
+/* Champions OCR diagnostic preview */
+.champions-ocr-progress{
+  margin-top:12px;padding:12px 13px;border-radius:15px;
+  border:1px solid rgba(var(--accent-rgb),.16);
+  background:rgba(var(--accent-rgb),.055);
+}
+.champions-ocr-progress-copy{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:10px}
+.champions-ocr-progress-copy strong{font-size:11px}
+.champions-ocr-progress-copy span{font-weight:900;color:var(--accent)}
+.champions-ocr-progress-track{height:7px;margin-top:8px;border-radius:999px;overflow:hidden;background:rgba(var(--accent-rgb),.11)}
+.champions-ocr-progress-track i{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .15s ease}
+.champions-ocr-progress small{display:block;margin-top:7px;color:var(--muted);font-size:9px;line-height:1.4}
+.champions-ocr-results{margin-top:14px;padding:15px;border:1px solid var(--line);border-radius:20px;background:#fff}
+.champions-ocr-results-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.champions-ocr-results-head h3{margin:1px 0 0;font-size:18px;letter-spacing:-.025em}
+.champions-ocr-results>p{margin:7px 0 13px;color:var(--muted);font-size:10px;line-height:1.5}
+.champions-ocr-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.champions-ocr-card{min-width:0;border:1px solid var(--line);border-radius:16px;padding:11px;background:#fafafe}
+.champions-ocr-card header{display:flex;align-items:flex-start;gap:9px;margin-bottom:9px}
+.champions-ocr-card header>div{min-width:0}
+.champions-ocr-card header strong{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.champions-ocr-card header small{display:block;margin-top:2px;color:var(--muted);font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.champions-ocr-slot{flex:0 0 auto;display:inline-grid;place-items:center;min-width:39px;height:23px;padding:0 7px;border-radius:8px;background:rgba(var(--accent-rgb),.1);color:var(--accent);font-size:8px;font-weight:950}
+.champions-ocr-unresolved{color:#9a6c11}
+.champions-ocr-detail{display:grid;grid-template-columns:48px 1fr;gap:6px;align-items:center;padding:5px 0;border-top:1px solid #ececf2;font-size:9px}
+.champions-ocr-detail>span:first-child{color:var(--muted);font-weight:800}
+.champions-ocr-detail>strong{font-size:10px}
+.champions-ocr-raw{color:#7b641a;font-size:9px;font-weight:750}
+.champions-ocr-missing{color:#a2a4af;font-size:9px;font-style:italic}
+.champions-ocr-moves{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px}
+.champions-ocr-moves>span{min-width:0;display:flex;align-items:center;gap:5px;background:#fff;border:1px solid #ededf2;border-radius:9px;padding:6px;font-size:8px}
+.champions-ocr-moves b{flex:0 0 auto;width:15px;height:15px;display:grid;place-items:center;border-radius:5px;background:rgba(var(--accent-rgb),.09);color:var(--accent);font-size:7px}
+.champions-ocr-moves strong,.champions-ocr-moves .champions-ocr-raw{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:8px}
+.champions-ocr-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-top:8px}
+.champions-ocr-stats>span{min-width:0;text-align:center;background:#fff;border:1px solid #eeeeF3;border-radius:7px;padding:5px 2px}
+.champions-ocr-stats small,.champions-ocr-stats strong,.champions-ocr-stats em{display:block}
+.champions-ocr-stats small{font-size:6px;color:var(--muted);font-weight:900;text-transform:uppercase}
+.champions-ocr-stats strong{font-size:9px;margin-top:1px}
+.champions-ocr-stats em{font-size:6px;color:var(--accent);font-style:normal;font-weight:850;margin-top:1px}
+
+@media(max-width:699px){
+  .champions-ocr-grid{grid-template-columns:1fr}
+  .champions-ocr-card{padding:10px}
+}
