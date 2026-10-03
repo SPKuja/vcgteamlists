@@ -2232,3 +2232,105 @@ body.tcg-preview-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .tcg-list-readiness.is-checking{background:#f2f6ff;color:#315b9e}
 .tcg-list-readiness.is-blocked{background:#fff3f5;color:#9b2537}
 @media(max-width:620px){.tcg-validation-item{grid-template-columns:1fr;gap:3px}}
+
+
+/* Pokémon Champions screenshot importer */
+.champions-import-button{min-height:36px;padding:0 11px;border-radius:12px;font-size:11px;gap:7px}
+.champions-import-button .experimental-badge{font-size:7px;padding:3px 5px}
+.champions-import-dialog{
+  width:min(94vw,860px);
+  max-height:92vh;
+  padding:0;
+  border:0;
+  border-radius:26px;
+  background:transparent;
+  color:var(--text);
+}
+.champions-import-dialog::backdrop{background:rgba(15,17,28,.5);backdrop-filter:blur(7px)}
+.champions-import-modal{
+  max-height:92vh;
+  overflow:auto;
+  padding:22px;
+  border:1px solid rgba(255,255,255,.8);
+  border-radius:26px;
+  background:var(--bg);
+  box-shadow:0 24px 80px rgba(0,0,0,.24);
+}
+.champions-import-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.champions-import-head h2{margin:0;font-size:25px;letter-spacing:-.035em}
+.champions-import-intro{margin:9px 0 17px;color:var(--muted);font-size:12px;line-height:1.55}
+.champions-upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.champions-upload-card{
+  display:block;
+  min-width:0;
+  border:1.5px dashed #cfd1de;
+  border-radius:20px;
+  background:#fff;
+  padding:10px;
+  cursor:pointer;
+  transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.champions-upload-card:hover,.champions-upload-card.is-dragover{
+  border-color:rgba(var(--accent-rgb),.7);
+  box-shadow:0 0 0 4px rgba(var(--accent-rgb),.07);
+}
+.champions-upload-card.is-dragover{transform:translateY(-2px)}
+.champions-upload-label{display:block;padding:3px 4px 9px;color:#5e6070;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em}
+.champions-upload-empty{
+  min-height:205px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  border-radius:14px;
+  background:linear-gradient(135deg,rgba(var(--accent-rgb),.08),rgba(var(--accent-rgb),.02));
+  text-align:center;
+  padding:20px;
+}
+.champions-upload-icon{
+  width:48px;height:48px;display:grid;place-items:center;
+  border-radius:16px;margin-bottom:12px;
+  background:rgba(var(--accent-rgb),.12);color:var(--accent);
+  font-size:25px;font-weight:800;
+}
+.champions-upload-empty strong{font-size:13px}
+.champions-upload-empty small{margin-top:5px;color:var(--muted);font-size:10px}
+.champions-preview{min-width:0}
+.champions-preview-frame{position:relative;overflow:hidden;border-radius:14px;background:#e9e9f0}
+.champions-preview-frame img{display:block;width:100%;height:auto}
+.champions-detection-layer{position:absolute;inset:0;pointer-events:none}
+.champions-detection-box{position:absolute;border:2px solid #b9ef21;border-radius:4px;box-shadow:0 0 0 1px rgba(0,0,0,.2) inset}
+.champions-detection-box span{
+  position:absolute;left:-1px;top:-1px;
+  min-width:17px;height:17px;padding:0 4px;
+  display:grid;place-items:center;
+  border-radius:4px 0 5px 0;
+  background:#b9ef21;color:#263000;
+  font-size:8px;font-weight:950;
+}
+.champions-file-meta{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:9px 3px 2px}
+.champions-file-meta strong{font-size:11px}
+.champions-file-meta span{font-size:9px;color:var(--muted);text-align:right}
+.champions-layout-key{
+  display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  margin:11px 2px 0;color:#858794;font-size:9px;line-height:1.45;
+}
+.champions-layout-key span:first-child{display:flex;align-items:center;gap:6px}
+.champions-key-box{width:13px;height:9px;border:2px solid #9bcf08;border-radius:2px}
+.champions-import-status{min-height:20px;margin-top:10px;font-size:11px;font-weight:750;color:#59606f}
+.champions-import-status.is-error{color:var(--danger)}
+.champions-import-status.is-success{color:#27704b}
+.champions-import-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:8px}
+.champions-import-actions .button:disabled{opacity:.48;cursor:not-allowed}
+body.champions-import-open{overflow:hidden}
+
+@media(max-width:699px){
+  .champions-import-dialog{width:100vw;max-width:100vw;max-height:100dvh;border-radius:0}
+  .champions-import-modal{max-height:100dvh;min-height:100dvh;border-radius:0;padding:16px 14px calc(18px + env(safe-area-inset-bottom))}
+  .champions-import-head h2{font-size:21px}
+  .champions-import-intro{font-size:11px}
+  .champions-upload-grid{grid-template-columns:1fr}
+  .champions-upload-empty{min-height:145px}
+  .champions-import-actions{display:grid;grid-template-columns:1fr 1fr;position:sticky;bottom:0;padding-top:10px;background:linear-gradient(180deg,rgba(245,246,251,0),var(--bg) 28%)}
+  .champions-import-button{min-height:34px;font-size:10px}
+}
