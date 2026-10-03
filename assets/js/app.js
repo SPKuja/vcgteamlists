@@ -3072,39 +3072,56 @@
     var image=slot.image;
     var naturalWidth=image.naturalWidth||image.width;
     var naturalHeight=image.naturalHeight||image.height;
-    var cropWidth=980,cropHeight=220,gap=24,margin=20;
+    var cellWidth=760,cellHeight=92,gap=14,margin=18;
     var canvas=document.createElement("canvas");
-    canvas.width=margin*2+cropWidth;
-    canvas.height=margin*2+(cropHeight+gap)*indexes.length-gap;
+    canvas.width=margin*2+cellWidth*4+gap*3;
+    canvas.height=margin*2+cellHeight*indexes.length+gap*Math.max(0,indexes.length-1);
     var ctx=canvas.getContext("2d",{willReadFrequently:true});
     ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
-    var cards=[];
+    var cells=[];
+    var rowRanges=[[.055,.285],[.275,.505],[.495,.735],[.725,.965]];
 
-    indexes.forEach(function(cardIndex,row){
+    indexes.forEach(function(cardIndex,gridRow){
       var box=slot.detection.cards[cardIndex];
-      var sx=(box.x+box.width*.48)*naturalWidth;
-      var sy=(box.y+box.height*.01)*naturalHeight;
-      var sw=box.width*.51*naturalWidth;
-      var sh=box.height*.98*naturalHeight;
-      var dx=margin,dy=margin+row*(cropHeight+gap);
+      rowRanges.forEach(function(range,moveIndex){
+        // Text-only area: skip the type/damage icon and keep just the move name.
+        var x0=.655,x1=.985,y0=range[0],y1=range[1];
+        var sx=(box.x+box.width*x0)*naturalWidth;
+        var sy=(box.y+box.height*y0)*naturalHeight;
+        var sw=box.width*(x1-x0)*naturalWidth;
+        var sh=box.height*(y1-y0)*naturalHeight;
+        var dx=margin+moveIndex*(cellWidth+gap);
+        var dy=margin+gridRow*(cellHeight+gap);
 
-      ctx.drawImage(image,sx,sy,sw,sh,dx,dy,cropWidth,cropHeight);
+        ctx.drawImage(image,sx,sy,sw,sh,dx,dy,cellWidth,cellHeight);
 
-      var imageData=ctx.getImageData(dx,dy,cropWidth,cropHeight);
-      var data=imageData.data;
-      for(var p=0;p<data.length;p+=4){
-        var r=data[p],g=data[p+1],b=data[p+2];
-        var lum=.299*r+.587*g+.114*b;
-        var v=lum>142?0:255;
-        data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
-      }
-      ctx.putImageData(imageData,dx,dy);
-      cards.push({
-        x:dx/canvas.width,y:dy/canvas.height,
-        width:cropWidth/canvas.width,height:cropHeight/canvas.height
+        var imageData=ctx.getImageData(dx,dy,cellWidth,cellHeight);
+        var data=imageData.data;
+        for(var p=0;p<data.length;p+=4){
+          var r=data[p],g=data[p+1],b=data[p+2];
+          var lum=.299*r+.587*g+.114*b;
+          var spread=Math.max(r,g,b)-Math.min(r,g,b);
+          var isText=lum>150||(lum>136&&spread<48);
+          var v=isText?0:255;
+          data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
+        }
+        ctx.putImageData(imageData,dx,dy);
+        cells.push({
+          cardIndex:cardIndex,moveIndex:moveIndex,
+          x:dx/canvas.width,y:dy/canvas.height,
+          width:cellWidth/canvas.width,height:cellHeight/canvas.height
+        });
       });
     });
-    return {canvas:canvas,detection:{cards:cards},indexes:indexes.slice()};
+
+    return {canvas:canvas,cells:cells,indexes:indexes.slice()};
+  }
+
+  function championsWordsInCell(words,cell,canvas){
+    var x=cell.x*canvas.width,y=cell.y*canvas.height,w=cell.width*canvas.width,h=cell.height*canvas.height;
+    return words.filter(function(word){
+      return word.cx>=x&&word.cx<=x+w&&word.cy>=y&&word.cy<=y+h;
+    }).sort(function(a,b){return a.cx-b.cx});
   }
 
   async function championsFallbackMoves(worker,slot,parsedCards,resources){
@@ -3116,39 +3133,56 @@
     if(!indexes.length)return;
 
     var prepared=championsBuildMoveFallbackCanvas(slot,indexes);
+    if(worker.setParameters){
+      await worker.setParameters({
+        tessedit_char_whitelist:"",
+        tessedit_pageseg_mode:"11"
+      });
+    }
     var result=await worker.recognize(prepared.canvas,{tessedit_pageseg_mode:"11"},{tsv:true,text:true});
     var words=championsParseTsv(result.data&&result.data.tsv);
-    var fallbackCards=championsWordsByCard(words,prepared.detection,prepared.canvas);
+    var byCard={};
 
-    fallbackCards.forEach(function(cardWords,row){
-      var cardIndex=prepared.indexes[row];
-      var lines=championsGroupLines(cardWords,.075).filter(function(line){return line.text});
-      var fallback=championsMoveMatches(lines,resources.moves);
-      var count=fallback.filter(function(move){return move&&move.match}).length;
-      var current=(parsedCards[cardIndex].moves||[]).filter(function(move){return move&&move.match}).length;
-      if(count>current)parsedCards[cardIndex].moves=fallback;
+    prepared.cells.forEach(function(cell){
+      var cellWords=championsWordsInCell(words,cell,prepared.canvas);
+      var text=cellWords.map(function(word){return word.text}).join(" ").replace(/\s+/g," ").trim();
+      var match=championsBestResourceMatch(text,resources.moves,.58);
+      if(!byCard[cell.cardIndex])byCard[cell.cardIndex]=[null,null,null,null];
+      byCard[cell.cardIndex][cell.moveIndex]={raw:text,match:match};
+    });
+
+    Object.keys(byCard).forEach(function(key){
+      var cardIndex=Number(key);
+      var targeted=byCard[key];
+      var targetedCount=targeted.filter(function(move){return move&&move.match}).length;
+      var currentCount=(parsedCards[cardIndex].moves||[]).filter(function(move){return move&&move.match}).length;
+      if(targetedCount>=currentCount&&targetedCount>=3){
+        parsedCards[cardIndex].moves=targeted;
+      }
     });
   }
+
 
   function championsBuildStatsFallbackCanvas(slot){
     var image=slot.image;
     var naturalWidth=image.naturalWidth||image.width;
     var naturalHeight=image.naturalHeight||image.height;
-    var cellWidth=300,cellHeight=105,gap=14,margin=18;
+    var cellWidth=430,cellHeight=90,gap=12,margin=16;
     var canvas=document.createElement("canvas");
     canvas.width=margin*2+cellWidth*6+gap*5;
     canvas.height=margin*2+cellHeight*6+gap*5;
     var ctx=canvas.getContext("2d",{willReadFrequently:true});
     ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
     var cells=[];
-    var rowRanges=[[.22,.48],[.47,.72],[.71,.985]];
+    var rowRanges=[[.275,.49],[.495,.715],[.715,.945]];
 
     slot.detection.cards.forEach(function(box,cardIndex){
       statKeys.forEach(function(key,statIndex){
         var rightHalf=statIndex>=3;
         var row=rightHalf?statIndex-3:statIndex;
-        var x0=rightHalf?.60:.10;
-        var x1=rightHalf?.995:.495;
+        // Keep only final stat + SP columns, excluding labels and nature arrows.
+        var x0=rightHalf?.745:.295;
+        var x1=rightHalf?.985:.495;
         var y0=rowRanges[row][0],y1=rowRanges[row][1];
 
         var sx=(box.x+box.width*x0)*naturalWidth;
@@ -3166,7 +3200,7 @@
         for(var p=0;p<data.length;p+=4){
           var r=data[p],g=data[p+1],b=data[p+2];
           var lum=.299*r+.587*g+.114*b;
-          var v=lum>150?0:255;
+          var v=lum>145?0:255;
           data[p]=v;data[p+1]=v;data[p+2]=v;data[p+3]=255;
         }
         ctx.putImageData(imageData,dx,dy);
@@ -3182,17 +3216,25 @@
   }
 
   function championsParseNumberCell(words,cell,canvas){
-    var x=cell.x*canvas.width,y=cell.y*canvas.height,w=cell.width*canvas.width,h=cell.height*canvas.height;
-    var values=words.filter(function(word){
-      return word.cx>=x&&word.cx<=x+w&&word.cy>=y&&word.cy<=y+h;
-    }).sort(function(a,b){return a.cx-b.cx}).map(function(word){
-      var digits=String(word.text||"").replace(/\D/g,"");
-      return digits?Number(digits):null;
-    }).filter(function(value){return value!=null&&Number.isFinite(value)});
+    var cellWords=championsWordsInCell(words,cell,canvas);
+    var values=[];
+    cellWords.forEach(function(word){
+      var groups=String(word.text||"").match(/\d+/g)||[];
+      groups.forEach(function(group){
+        var value=Number(group);
+        if(Number.isFinite(value))values.push(value);
+      });
+    });
 
     if(!values.length)return {value:null,sp:null};
-    if(values.length>=2)return {value:values[0],sp:values[values.length-1]};
-    if(values[0]>32)return {value:values[0],sp:null};
+    if(values.length>=2){
+      var statValue=values[0],spValue=values[values.length-1];
+      return {
+        value:statValue>=20&&statValue<=999?statValue:null,
+        sp:spValue>=0&&spValue<=32?spValue:null
+      };
+    }
+    if(values[0]>32)return {value:values[0]<=999?values[0]:null,sp:null};
     return {value:null,sp:values[0]};
   }
 
@@ -3212,11 +3254,24 @@
       var parsed=championsParseNumberCell(words,cell,prepared.canvas);
       var target=parsedCards[cell.cardIndex]&&parsedCards[cell.cardIndex].stats[cell.key];
       if(!target)return;
-      if((target.value==null||target.value<20)&&parsed.value!=null&&parsed.value>=20&&parsed.value<=999)target.value=parsed.value;
-      if(target.sp==null&&parsed.sp!=null&&parsed.sp>=0&&parsed.sp<=32)target.sp=parsed.sp;
+      if(parsed.value!=null)target.value=parsed.value;
+      if(parsed.sp!=null)target.sp=parsed.sp;
     });
 
-    parsedCards.forEach(function(card){championsRepairStatPoints(card.stats)});
+    parsedCards.forEach(function(card){
+      var sum=statKeys.reduce(function(total,key){
+        var sp=card.stats[key]&&card.stats[key].sp;
+        return total+(sp==null?0:sp);
+      },0);
+      if(sum>66){
+        statKeys.forEach(function(key){
+          var sp=card.stats[key]&&card.stats[key].sp;
+          if(sp!=null&&sp>32)card.stats[key].sp=null;
+        });
+      }
+      championsRepairStatPoints(card.stats);
+    });
+
     if(worker.setParameters){
       await worker.setParameters({
         tessedit_char_whitelist:"",
@@ -3224,6 +3279,7 @@
       });
     }
   }
+
 
   async function readChampionsTeam(){
     var status=$("#championsImportStatus");
